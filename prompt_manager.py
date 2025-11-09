@@ -290,9 +290,18 @@ If the user chooses to log in:
 4. Confirm login succeeded.
 
 ---
+"""
 
-{f"🎉 ALL REQUIRED FIELDS COLLECTED! \n\n⚠️ NEXT STEP: Start the PERSONALITY CONVERSATION PHASE (step 9).\nDo NOT send verification code yet. Get to know them first through natural conversation.\nOnly after personality conversation is done, then send verification code (step 10)." if required_complete and not user_info.get("verification_code_sent") else ""}
-        """
+    # Add dynamic message for personality conversation phase
+    if required_complete and not user_info.get("verification_code_sent"):
+        prompt += """
+
+🎉 ALL REQUIRED FIELDS COLLECTED!
+
+⚠️ NEXT STEP: Start the PERSONALITY CONVERSATION PHASE (step 9).
+Do NOT send verification code yet. Get to know them first through natural conversation.
+Only after personality conversation is done, then send verification code (step 10).
+"""
         
         logger.info(f"Generated dynamic prompt for session {session_id}")
         return prompt

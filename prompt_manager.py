@@ -150,21 +150,31 @@ def set_prompt(session_id: str) -> str:
                            user_info.get("email") and
                            user_info.get("birthday") and
                            user_info.get("gender"))
-        
-        prompt = f"""You are an assistant that facilitates login/signup for the app "Glow".
-        
-You can use tools silently. Never announce that you are using a tool.
-Never mention anything related to database, redis, or storage to the user.
-Never mention tools, APIs, or system processes.
-Your job is to collect information naturally through conversation, without sounding robotic.
-Keep everything friendly, casual, and conversational — like a real human friend.
 
-IMPORTANT: The session_id for all tools is: {session_id}
-You MUST use this exact session_id when calling any signup-related tools.
+        # Build status section - REPLACE entirely when early exit mode
+        if analyze_button_pressed and early_exit_ready and not user_info.get("verification_code_sent"):
+            status_section = """📊 Current Signup Status:
 
----
+🎨 **EARLY EXIT MODE - "ANALYZE MY VIBE" BUTTON PRESSED!**
 
-📊 Current Signup Status:
+The user is eager to see their vibe! They've completed the essentials:
+✅ Name, username, password, email, birthday, gender
+
+**YOUR IMMEDIATE NEXT ACTION:**
+1. Send a friendly acknowledgment: "ooh i love the energy! 🌸 let me send a quick verification code to your email so we can get you into glow"
+2. IMMEDIATELY call generate_verification_code tool
+3. Wait for user to provide the code
+4. Call test_verification_code when they respond
+5. Say "welcome to glow 🌸 you're all set!" when verified
+
+**CRITICAL - DO NOT:**
+- Ask about sexuality, ethnicity, pronouns, university, major, or occupation
+- Start a personality conversation
+- Ask ANY other questions
+
+Jump straight to verification (step 10)!"""
+        else:
+            status_section = f"""📊 Current Signup Status:
 
 {intent_status}
 {session_status}
@@ -181,7 +191,22 @@ You MUST use this exact session_id when calling any signup-related tools.
 {university_status}
 {major_status}
 {occupation_status}
-{verification_sent_status}
+{verification_sent_status}"""
+
+        prompt = f"""You are an assistant that facilitates login/signup for the app "Glow".
+
+You can use tools silently. Never announce that you are using a tool.
+Never mention anything related to database, redis, or storage to the user.
+Never mention tools, APIs, or system processes.
+Your job is to collect information naturally through conversation, without sounding robotic.
+Keep everything friendly, casual, and conversational — like a real human friend.
+
+IMPORTANT: The session_id for all tools is: {session_id}
+You MUST use this exact session_id when calling any signup-related tools.
+
+---
+
+{status_section}
 
 ---
 
@@ -305,34 +330,10 @@ If the user chooses to log in:
 ---
 """
 
-        # SPECIAL MODE: If analyze button was pressed, skip personality conversation and go straight to verification
-        if analyze_button_pressed and early_exit_ready and not user_info.get("verification_code_sent"):
-            prompt += """
-
-🎨 ANALYZE MY VIBE BUTTON WAS PRESSED!
-
-⚠️ EARLY EXIT MODE ACTIVATED!
-
-The user clicked "Analyze My Vibe" button after answering gender.
-They want to skip ahead and see their profile immediately.
-
-NEXT STEPS:
-1. Send a friendly message like: "ooh i love the energy! 🌸 let me send a quick verification code to your email so we can get you into glow"
-2. Immediately call generate_verification_code tool
-3. When they respond with the code, call test_verification_code
-4. If verified, say "welcome to glow 🌸 you're all set!"
-
-DO NOT ask for sexuality, ethnicity, pronouns, university, major, or occupation.
-The user wants to skip those and jump straight to their profile.
-
-(Note: Saved data so far: name, username, password, email, birthday, gender. Other fields will be NULL in database.)
-"""
-            logger.info(f"🎨 EARLY EXIT MODE for session {session_id}")
-            return prompt
-
-        # Add dynamic message for personality conversation phase
-        if required_complete and not user_info.get("verification_code_sent"):
-            prompt += """
+        # Add reminder for normal mode (not needed for early exit since it's in status section)
+        if not (analyze_button_pressed and early_exit_ready):
+            if required_complete and not user_info.get("verification_code_sent"):
+                prompt += """
 
 🎉 ALL REQUIRED FIELDS COLLECTED!
 
@@ -341,7 +342,7 @@ Do NOT send verification code yet. Get to know them first through natural conver
 Only after personality conversation is done, then send verification code (step 10).
 """
 
-        logger.info(f"Generated dynamic prompt for session {session_id}")
+        logger.info(f"Generated dynamic prompt for session {session_id} - Early Exit Active: {analyze_button_pressed and early_exit_ready}")
         return prompt
 
     except Exception as e:

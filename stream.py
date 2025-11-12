@@ -346,6 +346,61 @@ async def get_latest_session():
             "error": str(e)
         }
 
+@app.get("/debug/all-sessions")
+async def get_all_sessions():
+    """
+    Debug endpoint: Get ALL Redis session keys and their contents.
+    Returns a list of all sessions with their data.
+    """
+    try:
+        # Get all session keys
+        keys = r.keys("session:*")
+
+        if not keys:
+            return {
+                "status": "no_sessions",
+                "message": "No sessions found in Redis",
+                "total": 0,
+                "sessions": []
+            }
+
+        # Get data for all sessions
+        all_sessions = []
+        for key in keys:
+            key_str = key.decode() if isinstance(key, bytes) else key
+            session_data_str = r.get(key_str)
+
+            if session_data_str:
+                try:
+                    session_data = json.loads(session_data_str)
+                    all_sessions.append({
+                        "session_id": key_str.replace("session:", ""),
+                        "full_key": key_str,
+                        "analyze_button_pressed": session_data.get("analyze_button_pressed", False),
+                        "has_user_id": "user_id" in session_data,
+                        "signup_data": session_data.get("signup_data", {}),
+                        "full_data": session_data
+                    })
+                except json.JSONDecodeError:
+                    all_sessions.append({
+                        "session_id": key_str.replace("session:", ""),
+                        "full_key": key_str,
+                        "error": "Failed to parse JSON"
+                    })
+
+        return {
+            "status": "success",
+            "total": len(all_sessions),
+            "sessions": all_sessions
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching all sessions: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("stream:app", host="0.0.0.0", port=8000, reload=True)

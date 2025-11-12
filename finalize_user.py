@@ -10,6 +10,7 @@ from langchain_core.tools import tool
 from redis_client import r
 from database.db import SessionLocal
 from database.models import User
+from jwt_utils import create_token_pair
 
 logger = logging.getLogger(__name__)
 
@@ -293,14 +294,20 @@ def finalize_user_background(session_id: str) -> int:
         if not conversations_saved:
             logger.warning(f"⚠️  Failed to save conversations for session {session_id}, but continuing...")
 
-        # Step 3: Store user_id in the SAME Redis session key
-        # iOS will poll this key to get the user_id, then delete it (along with SQLite)
+        # Step 3: Generate JWT tokens
+        access_token, refresh_token = create_token_pair(user_id)
+        logger.info(f"🔑 Generated JWT tokens for user {user_id}")
+
+        # Step 4: Store user_id and tokens in the SAME Redis session key
+        # iOS will poll this key to get the user_id and tokens, then delete it (along with SQLite)
         redis_key = f"session:{session_id}"
         session_data = json.loads(r.get(redis_key) or '{}')
         session_data['user_id'] = user_id
+        session_data['access_token'] = access_token
+        session_data['refresh_token'] = refresh_token
         session_data['conversations_saved'] = conversations_saved  # Track if we should clean SQLite
         r.setex(redis_key, 300, json.dumps(session_data))  # 5 min TTL for iOS to poll
-        logger.info(f"💾 Stored user_id {user_id} in Redis session {session_id}")
+        logger.info(f"💾 Stored user_id {user_id} and tokens in Redis session {session_id}")
 
         # Note: SQLite cleanup will happen when iOS calls /cleanup endpoint
         

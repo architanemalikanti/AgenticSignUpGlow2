@@ -172,10 +172,12 @@ async def poll_user_id(session_id: str):
         user_id = session_data.get("user_id")
 
         if user_id:
-            # User ID is ready!
+            # User ID is ready! Return user_id and JWT tokens
             return {
                 "status": "ready",
                 "user_id": user_id,
+                "access_token": session_data.get("access_token"),
+                "refresh_token": session_data.get("refresh_token"),
                 "session_id": session_id
             }
         else:

@@ -7,7 +7,8 @@ from langchain_community.tools.tavily_search import TavilySearchResults
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse
-
+from database.db import SessionLocal
+from database.models import User
 from agent import Agent
 from prompt_manager import set_prompt
 from redis_client import r
@@ -106,7 +107,6 @@ async def chat_stream(q: str = Query(""), session_id: str = Query(...)):
         
         verification_succeeded = False
         background_task_started = False
-        gender_just_set = False
 
         async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
             async_abot = Agent(model, all_tools, system=dynamic_prompt, checkpointer=async_memory)
@@ -115,11 +115,6 @@ async def chat_stream(q: str = Query(""), session_id: str = Query(...)):
                 if ev["event"] == "on_tool_end":
                     tool_name = ev.get("name", "")
                     tool_output = ev.get("data", {}).get("output", "")
-
-                    # Check if gender was just set
-                    if tool_name == "get_user_gender":
-                        gender_just_set = True
-                        logger.info(f"🎨 Gender was set, will show analyze button for {session_id}")
 
                     if tool_name == "test_verification_code" and tool_output == "verified":
                         verification_succeeded = True
@@ -138,12 +133,6 @@ async def chat_stream(q: str = Query(""), session_id: str = Query(...)):
                     content = ev["data"]["chunk"].content
                     if content:
                         yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
-
-        # If gender was just set, send event to show analyze button
-        if gender_just_set:
-            logger.info(f"🎨 Sending show_analyze_button event for {session_id}")
-            event_data = json.dumps({'session_id': session_id, 'message': 'Show analyze my vibe button'})
-            yield f"event: show_analyze_button\ndata: {event_data}\n\n"
 
         # If verification succeeded, send onboarding_complete immediately
         if verification_succeeded:
@@ -166,37 +155,6 @@ async def create_redis_key():
     import uuid
     session_id = str(uuid.uuid4())
     return {"session_id": session_id}
-
-@app.post("/set-analyze-button/{session_id}")
-async def set_analyze_button(session_id: str):
-    """
-    Called when user clicks 'Analyze My Vibe' button.
-    Sets a flag in Redis to trigger early verification flow.
-    """
-    try:
-        redis_key = f"session:{session_id}"
-        session_data_str = r.get(redis_key)
-
-        if not session_data_str:
-            return {"status": "error", "message": "Session not found"}
-
-        session_data = json.loads(session_data_str)
-
-        # Set the flag that user clicked the analyze button
-        session_data["analyze_button_pressed"] = True
-
-        r.set(redis_key, json.dumps(session_data))
-        logger.info(f"🎨 Analyze button pressed for session {session_id}")
-
-        return {
-            "status": "success",
-            "message": "Analyze button flag set",
-            "session_id": session_id
-        }
-
-    except Exception as e:
-        logger.error(f"Error setting analyze button for session {session_id}: {e}")
-        return {"status": "error", "error": str(e)}
 
 @app.get("/poll/{session_id}")
 async def poll_user_id(session_id: str):
@@ -345,6 +303,133 @@ async def get_latest_session():
             "status": "error",
             "error": str(e)
         }
+
+@app.get("/user/{user_id}/name")
+async def get_user_name(user_id: str):
+    """
+    Get a user's name in lowercase from Postgres.
+
+    Args:
+        user_id: The user's ID in the database
+
+    Returns:
+        User's name in lowercase
+    """
+    from database.db import SessionLocal
+    from database.models import User
+
+    db = SessionLocal()
+    try:
+        # Query user by ID
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            return {
+                "status": "error",
+                "message": "User not found"
+            }
+
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "name": user.name.lower() if user.name else ""
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching user name for {user_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+@app.get("/user/{user_id}/introduction")
+async def generate_user_introduction(user_id: str):
+    """
+    Generate a short, chic, third-person introduction for a user.
+    Uses their name and gender from Postgres to create a personalized intro.
+
+    Args:
+        user_id: The user's ID in the database
+
+    Returns:
+        A chic third-person introduction
+    """
+
+    db = SessionLocal()
+    try:
+        # Query user by ID
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            return {
+                "status": "error",
+                "message": "User not found"
+            }
+
+        if not user.name:
+            return {
+                "status": "error",
+                "message": "User name not available"
+            }
+
+        # Get user's name and gender
+        name = user.name
+        gender = user.gender if user.gender else "person"
+
+        # Create prompt for Claude to generate introduction
+        prompt = f"""Generate a short, chic, third-person introduction for a user who is a {gender} and whose name is {name}.
+
+                Requirements:
+                - Start with "introducing {name.lower()}"
+                - Keep it SHORT (1 sentence max)
+                - Make it chic, stylish, and entertaining
+                - Third-person only
+                - Lowercase letters throughout
+                - Gen-z/fun vibe
+
+                Example style: "introducing mademoiselle archita🌸", 
+                "presenting miss archita", 
+                "introducing the one and only archita", 
+                "presenting the divine archita"
+
+                are a few examples for women. make it end with the name of the user. 
+
+
+                Now generate one for {name} ({gender}):"""
+
+        # Call Claude API
+        from anthropic import Anthropic
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=150,
+            messages=[{
+                "role": "user",
+                "content": prompt
+            }]
+        )
+
+        introduction = response.content[0].text.strip()
+
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "name": name,
+            "gender": gender,
+            "introduction": introduction
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating introduction for {user_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
 
 @app.get("/debug/all-sessions")
 async def get_all_sessions():

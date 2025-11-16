@@ -798,7 +798,7 @@ Generate 2 questions:"""
     finally:
         db.close()
 
-@app.get("/search/users")
+@app.get("/searchUsers")
 async def search_users(query: str = Query(..., min_length=1)):
     """
     Search for users by username or name.

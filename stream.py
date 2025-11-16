@@ -40,7 +40,13 @@ from tools import (
     get_user_college_major,
     generate_verification_code,
     resend_verification_code,
-    log_in_user
+    log_in_user,
+    # Login tools
+    switch_to_login_mode,
+    get_login_username,
+    get_login_password,
+    verify_login_credentials,
+    finalize_login
 )
 # Use the finalize_user version for background tasks
 from finalize_user import test_verification_code
@@ -67,7 +73,13 @@ all_tools = [
     generate_verification_code,
     resend_verification_code,
     test_verification_code,  # From finalize_user - returns "verified"/"incorrect"
-    log_in_user
+    log_in_user,
+    # Login tools
+    switch_to_login_mode,
+    get_login_username,
+    get_login_password,
+    verify_login_credentials,
+    finalize_login
 ]
 
 # --- Model ---
@@ -108,6 +120,7 @@ async def chat_stream(q: str = Query(""), session_id: str = Query(...)):
         thread = {"configurable": {"thread_id": session_id}}
         
         verification_succeeded = False
+        login_succeeded = False
         background_task_started = False
 
         async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
@@ -118,6 +131,7 @@ async def chat_stream(q: str = Query(""), session_id: str = Query(...)):
                     tool_name = ev.get("name", "")
                     tool_output = ev.get("data", {}).get("output", "")
 
+                    # Signup verification
                     if tool_name == "test_verification_code" and tool_output == "verified":
                         verification_succeeded = True
                         # Start background task immediately
@@ -129,7 +143,12 @@ async def chat_stream(q: str = Query(""), session_id: str = Query(...)):
                             ).start()
                             background_task_started = True
                             logger.info(f"🚀 Started background finalization for {session_id}")
-                
+
+                    # Login verification
+                    if tool_name == "finalize_login" and tool_output == "verified":
+                        login_succeeded = True
+                        logger.info(f"🚀 Login completed for {session_id}")
+
                 # Stream LLM tokens
                 if ev["event"] == "on_chat_model_stream":
                     content = ev["data"]["chunk"].content
@@ -141,6 +160,12 @@ async def chat_stream(q: str = Query(""), session_id: str = Query(...)):
             logger.info(f"✅ Sending onboarding_complete to iOS for session {session_id}")
             # Send onboarding complete signal with session_id
             # iOS will poll Redis for user_id using this session_id
+            yield f"event: onboarding_complete\ndata: {json.dumps({'session_id': session_id})}\n\n"
+            logger.info(f"✅ Sent onboarding_complete with session_id to iOS")
+
+        # If login succeeded, send onboarding_complete (same event as signup)
+        if login_succeeded:
+            logger.info(f"✅ Sending onboarding_complete to iOS for session {session_id}")
             yield f"event: onboarding_complete\ndata: {json.dumps({'session_id': session_id})}\n\n"
             logger.info(f"✅ Sent onboarding_complete with session_id to iOS")
 

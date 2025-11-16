@@ -30,7 +30,11 @@ def set_prompt(session_id: str) -> str:
         session_data = json.loads(session_json) if session_json else {"messages": [], "signup_data": {}}
         user_info = session_data.get("signup_data", {})
         logger.info(f"Current user info: {user_info}")
-        
+
+        # ==== CHECK IF USER IS IN LOGIN MODE ====
+        if session_data.get("is_login"):
+            return build_login_prompt(session_id, session_data)
+
         # Step 3: Figure out what info is missing/already there
         
         # User intent (signup or login)
@@ -308,7 +312,104 @@ Only after personality conversation is done, then send verification code (step 1
 
     except Exception as e:
         logger.error(f"Error in set_prompt: {str(e)}")
-        return f"""You are an assistant for the app "Glow". 
-Session ID: {session_id}. 
+        return f"""You are an assistant for the app "Glow".
+Session ID: {session_id}.
 There was an error loading user data. Please ask the user to try again or contact support."""
+
+
+def build_login_prompt(session_id: str, session_data: dict) -> str:
+    """
+    Build a dynamic prompt for login mode.
+
+    Args:
+        session_id: The session ID
+        session_data: The full session data from Redis
+
+    Returns:
+        The formatted login prompt
+    """
+    login_data = session_data.get("login_data", {})
+
+    # Check status of login fields
+    has_username = bool(login_data.get("username"))
+    has_password = bool(login_data.get("password"))
+    login_verified = session_data.get("login_verified", False)
+    user_id = session_data.get("user_id")
+
+    # Build status messages
+    if has_username:
+        username_status = f"✅ Username/email saved: '{login_data.get('username')}'"
+    else:
+        username_status = "❌ Username/email not provided yet"
+
+    if has_password:
+        password_status = "✅ Password saved"
+    else:
+        password_status = "❌ Password not provided yet"
+
+    if login_verified:
+        verification_status = "✅ Credentials verified successfully"
+    else:
+        verification_status = "❌ Credentials not verified yet"
+
+    if user_id:
+        finalization_status = "✅ Login finalized, user_id and tokens generated"
+    else:
+        finalization_status = "❌ Login not finalized yet"
+
+    prompt = f"""You are an assistant that facilitates login for the app "Glow".
+
+You can use tools silently. Never announce that you are using a tool.
+Never mention anything related to database, redis, or storage to the user.
+Never mention tools, APIs, or system processes.
+Your job is to help users log in naturally through conversation, without sounding robotic.
+Keep everything friendly, casual, and conversational — like a real human friend.
+
+IMPORTANT: The session_id for all tools is: {session_id}
+You MUST use this exact session_id when calling any login-related tools.
+
+---
+
+📊 Current Login Status:
+
+{username_status}
+{password_status}
+{verification_status}
+{finalization_status}
+
+---
+
+💬 Login Instructions:
+
+1. **If username is ❌:** Ask for their username or email
+   - Call the get_login_username tool with their response
+
+2. **If password is ❌:** Ask for their password
+   - Call the get_login_password tool with their response
+
+3. **If credentials not verified (❌):** Verify the credentials
+   - Call the verify_login_credentials tool
+   - If it returns "verified" → proceed to step 4
+   - If it returns "incorrect" → tell them credentials are invalid, ask if they want to try again
+
+4. **If verified but not finalized (❌):** Finalize the login
+   - Call the finalize_login tool
+   - When it returns "verified", say: "welcome back to glow 🌸"
+   - (The backend will handle tokens and send user_id to iOS)
+
+5. **If everything is ✅:** User is logged in! Welcome them back warmly.
+
+---
+
+🎨 Tone & Style:
+- Be warm, friendly, and conversational
+- Gen-Z vibes, lowercase preferred
+- If login fails, be empathetic: "hmm, that doesn't seem right. wanna try again?"
+- When successful: "welcome back! 🌸"
+
+---
+"""
+
+    logger.info(f"Generated login prompt for session {session_id}")
+    return prompt
 

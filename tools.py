@@ -402,10 +402,171 @@ def log_in_user() -> str:
     return "logging you in bestie"
 
 
+# ========================================
+# LOGIN SYSTEM TOOLS
+# ========================================
+
+@tool
+def switch_to_login_mode(session_id: str) -> str:
+    """
+    Call this when user wants to log in instead of sign up.
+    This switches the conversation to login mode.
+    """
+    session_data = get_session_data(session_id)
+    session_data["is_login"] = True
+    session_data["login_data"] = {}
+    save_session_data(session_id, session_data)
+    print(f"✅ Switched to login mode for session {session_id}")
+    return "Switched to login mode. Now ask for their username or email."
+
+@tool
+def get_login_username(session_id: str, username: str) -> str:
+    """
+    Store the username or email for login.
+    This is called after asking the user for their login credentials.
+
+    Args:
+        session_id: The session ID
+        username: The username or email provided by the user
+    """
+    session_data = get_session_data(session_id)
+
+    # Initialize login_data if not present
+    if "login_data" not in session_data:
+        session_data["login_data"] = {}
+
+    session_data["login_data"]["username"] = username.strip()
+    save_session_data(session_id, session_data)
+
+    print(f"✅ Stored login username: {username}")
+    return f"Username '{username}' saved. Now ask for their password."
+
+@tool
+def get_login_password(session_id: str, password: str) -> str:
+    """
+    Store the password for login (hashed immediately for security).
+    This is called after asking the user for their password.
+
+    Args:
+        session_id: The session ID
+        password: The password provided by the user
+    """
+    session_data = get_session_data(session_id)
+
+    # Initialize login_data if not present
+    if "login_data" not in session_data:
+        session_data["login_data"] = {}
+
+    # Store the plain password temporarily (will be verified against hash in DB)
+    session_data["login_data"]["password"] = password
+    save_session_data(session_id, session_data)
+
+    print(f"✅ Stored login password")
+    return "Password saved. Now verify the credentials."
+
+@tool
+def verify_login_credentials(session_id: str) -> str:
+    """
+    Verify the login credentials against the database.
+    Checks if username/email exists and password matches.
+    If successful, returns user info. If failed, returns error message.
+
+    Args:
+        session_id: The session ID containing login_data
+    """
+    session_data = get_session_data(session_id)
+    login_data = session_data.get("login_data", {})
+
+    username = login_data.get("username", "").strip()
+    password = login_data.get("password", "")
+
+    if not username or not password:
+        return "Error: Missing username or password. Please provide both."
+
+    # Query database
+    db = SessionLocal()
+    try:
+        # Try to find user by username OR email
+        user = db.query(User).filter(
+            (User.username == username) | (User.email == username)
+        ).first()
+
+        if not user:
+            print(f"❌ Login failed: User '{username}' not found")
+            return "incorrect"
+
+        # Check password
+        if not check_password_hash(user.password, password):
+            print(f"❌ Login failed: Invalid password for '{username}'")
+            return "incorrect"
+
+        # SUCCESS! Store user_id in session
+        session_data["login_verified"] = True
+        session_data["verified_user_id"] = user.id
+
+        # Clear password from Redis for security
+        session_data["login_data"]["password"] = "[REDACTED]"
+
+        save_session_data(session_id, session_data)
+
+        print(f"✅ Login successful for user {user.username} (ID: {user.id})")
+        return "verified"
+
+    except Exception as e:
+        print(f"❌ Database error during login: {str(e)}")
+        return f"Error during login verification: {str(e)}"
+    finally:
+        db.close()
+
+@tool
+def finalize_login(session_id: str) -> str:
+    """
+    Finalize the login process by generating JWT tokens and storing user_id in Redis.
+    This is called after credentials are verified.
+    Call this only after verify_login_credentials returns 'verified'.
+
+    Args:
+        session_id: The session ID
+    """
+    from jwt_utils import create_access_token, create_refresh_token
+
+    session_data = get_session_data(session_id)
+
+    # Check if login was verified
+    if not session_data.get("login_verified"):
+        return "Error: Login credentials not verified yet. Call verify_login_credentials first."
+
+    user_id = session_data.get("verified_user_id")
+    if not user_id:
+        return "Error: No user_id found. Verification may have failed."
+
+    try:
+        # Generate JWT tokens
+        access_token = create_access_token(user_id)
+        refresh_token = create_refresh_token(user_id)
+
+        # Store in Redis session for polling
+        session_data["user_id"] = user_id
+        session_data["access_token"] = access_token
+        session_data["refresh_token"] = refresh_token
+
+        save_session_data(session_id, session_data)
+
+        print(f"✅ Login finalized for user {user_id}")
+        print(f"   Access token: {access_token[:20]}...")
+        print(f"   Refresh token: {refresh_token[:20]}...")
+
+        return "verified"
+
+    except Exception as e:
+        print(f"❌ Error finalizing login: {str(e)}")
+        return f"Error finalizing login: {str(e)}"
+
+
 #helper functions
 def delete_redis_key(session_id: str) -> str:
     """
-    This redis session_id of the onboarding conversation is deleted from redis. 
+    This redis session_id of the onboarding conversation is deleted from redis.
     """
     if session_id:
         r.delete(f"session:{session_id}")

@@ -798,6 +798,63 @@ Generate 2 questions:"""
     finally:
         db.close()
 
+@app.get("/search/users")
+async def search_users(query: str = Query(..., min_length=1)):
+    """
+    Search for users by username or name.
+    Returns top 5 matching results.
+
+    Args:
+        query: Search string (username or name)
+
+    Returns:
+        List of up to 5 matching users with their basic info
+    """
+    db = SessionLocal()
+    try:
+        # Normalize query to lowercase for case-insensitive search
+        search_term = query.lower().strip()
+
+        if not search_term:
+            return {
+                "status": "error",
+                "message": "Search query cannot be empty"
+            }
+
+        # Query database for users matching username or name
+        # Using ilike for case-insensitive partial matching
+        matching_users = db.query(User).filter(
+            (User.username.ilike(f"%{search_term}%")) |
+            (User.name.ilike(f"%{search_term}%"))
+        ).limit(5).all()
+
+        # Format results
+        results = []
+        for user in matching_users:
+            results.append({
+                "user_id": user.id,
+                "username": user.username,
+                "name": user.name,
+                "university": user.university if user.university else None,
+                "occupation": user.occupation if user.occupation else None
+            })
+
+        return {
+            "status": "success",
+            "query": query,
+            "count": len(results),
+            "results": results
+        }
+
+    except Exception as e:
+        logger.error(f"Error searching users with query '{query}': {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
 @app.get("/user/{user_id}/currentEra")
 async def get_current_era(user_id: str):
     """

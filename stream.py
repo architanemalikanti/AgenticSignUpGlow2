@@ -1538,6 +1538,138 @@ async def get_follower_count(user_id: str):
     finally:
         db.close()
 
+@app.get("/feed/notifications/{user_id}")
+async def get_feed_notifications(user_id: str):
+    """
+    Poll for feed notifications/activity for a user.
+    Returns:
+    1. Follow requests they've received (people who want to follow them)
+    2. Follow requests that were accepted (people who accepted their request)
+    3. Era updates from people they follow (TODO: implement later)
+
+    Args:
+        user_id: The user's ID
+
+    Returns:
+        List of notifications/activity items for the feed
+    """
+    db = SessionLocal()
+    try:
+        notifications = []
+
+        # 1. Get follow requests received (people who want to follow me)
+        follow_requests = db.query(FollowRequest).filter(
+            FollowRequest.requested_id == user_id
+        ).order_by(FollowRequest.created_at.desc()).all()
+
+        for req in follow_requests:
+            requester = db.query(User).filter(User.id == req.requester_id).first()
+            if requester:
+                notifications.append({
+                    "type": "follow_request_received",
+                    "id": req.id,
+                    "requester_id": requester.id,
+                    "requester_username": requester.username,
+                    "requester_name": requester.name,
+                    "requester_university": requester.university,
+                    "requester_occupation": requester.occupation,
+                    "created_at": req.created_at.isoformat(),
+                    "message": f"{requester.name} wants to follow you"
+                })
+
+        # 2. Get recently accepted follow requests (people who accepted my request)
+        # Strategy: Look at Follow relationships where I'm the follower, created recently
+        # We'll show follows created in the last 7 days as "new"
+        from datetime import datetime, timedelta
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+
+        recent_follows = db.query(Follow).filter(
+            Follow.follower_id == user_id,
+            Follow.created_at >= seven_days_ago
+        ).order_by(Follow.created_at.desc()).all()
+
+        for follow in recent_follows:
+            accepter = db.query(User).filter(User.id == follow.following_id).first()
+            if accepter:
+                # Generate a personalized message about the accepter
+                accepter_conversations = accepter.conversations if accepter.conversations else []
+
+                # Generate life update about the person who accepted
+                if accepter_conversations and len(accepter_conversations) > 0:
+                    # Use Claude to generate a fun update (similar to push notification)
+                    try:
+                        from anthropic import Anthropic
+                        import json
+
+                        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+                        prompt = f"""Generate a fun, short message about someone who accepted a follow request.
+
+User who accepted: {accepter.name}
+Their conversations: {json.dumps(accepter_conversations)}
+
+Write a 1-2 sentence life update about {accepter.name} based on their conversations.
+
+Requirements:
+- 1-2 sentences max
+- 15-25 words total
+- Lowercase, casual, gen-z vibe
+- Third person about {accepter.name}
+- Give a peek into what they're currently up to
+- No emojis
+
+Example: "sarah accepted! she's surviving law school and planning her europe trip."
+
+Return ONLY the text, no quotes or explanations."""
+
+                        response = client.messages.create(
+                            model="claude-sonnet-4-20250514",
+                            max_tokens=100,
+                            messages=[{"role": "user", "content": prompt}]
+                        )
+
+                        message = response.content[0].text.strip().strip('"\'')
+
+                    except Exception as e:
+                        logger.error(f"Error generating feed message: {e}")
+                        message = f"{accepter.name} accepted your follow request"
+                else:
+                    message = f"{accepter.name} accepted your follow request"
+
+                notifications.append({
+                    "type": "follow_request_accepted",
+                    "id": follow.id,
+                    "accepter_id": accepter.id,
+                    "accepter_username": accepter.username,
+                    "accepter_name": accepter.name,
+                    "accepter_university": accepter.university,
+                    "accepter_occupation": accepter.occupation,
+                    "created_at": follow.created_at.isoformat(),
+                    "message": message
+                })
+
+        # 3. TODO: Era updates from people they follow
+        # We'll implement this later when you figure out how era updates work
+
+        # Sort all notifications by created_at descending (most recent first)
+        notifications.sort(key=lambda x: x["created_at"], reverse=True)
+
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "count": len(notifications),
+            "notifications": notifications
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching feed notifications for {user_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("stream:app", host="0.0.0.0", port=8000, reload=True)

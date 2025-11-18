@@ -927,7 +927,7 @@ Requirements:
 - Cinematic and dramatic tone
 - Very Gen-Z, very girly. 
 - Third person (e.g., "{name} is entering her law school era")
-- Lowercase preferred
+- Lowercase letters
 - Focus on what's currently happening or about to happen in their life
 - Make it feel like a movie narration
 - three sentences max. 

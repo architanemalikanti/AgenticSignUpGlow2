@@ -86,3 +86,19 @@ class FollowRequest(Base):
     # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class Era(Base):
+    __tablename__ = 'eras'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign key - user who posted/owns this notification
+    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
+
+    # Content of the era/notification
+    content = Column(String, nullable=False)
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+

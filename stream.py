@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest
+from database.models import User, Design, Follow, FollowRequest, Era
 from agent import Agent
 from prompt_manager import set_prompt
 from redis_client import r
@@ -976,7 +976,7 @@ class EraPush(BaseModel):
 @app.post("/user/pushEra")
 async def push_era(era_data: EraPush):
     """
-    Add a new era to the user's eras array.
+    Post a new era to the eras table (feed/notifications table).
     Called when user clicks "Push This Era" in iOS.
 
     Request body:
@@ -986,7 +986,7 @@ async def push_era(era_data: EraPush):
     }
 
     Returns:
-        Success status and all eras
+        Success status and era post
     """
     db = SessionLocal()
     try:
@@ -999,27 +999,29 @@ async def push_era(era_data: EraPush):
                 "message": "User not found"
             }
 
-        # Initialize eras array if None
-        if user.eras is None:
-            user.eras = []
+        # Create new era post in eras table
+        new_era = Era(
+            user_id=era_data.user_id,
+            content=era_data.era_text
+        )
 
-        # Append the new era to the array
-        user.eras = user.eras + [era_data.era_text]
+        db.add(new_era)
         db.commit()
+        db.refresh(new_era)
 
-        logger.info(f"✅ Added era for user {era_data.user_id}: {era_data.era_text[:50]}...")
+        logger.info(f"✅ Posted era for user {era_data.user_id}: {era_data.era_text[:50]}...")
 
         return {
             "status": "success",
+            "era_id": new_era.id,
             "user_id": era_data.user_id,
-            "era": era_data.era_text,
-            "total_eras": len(user.eras),
-            "all_eras": user.eras,
-            "message": "Era added successfully"
+            "content": era_data.era_text,
+            "created_at": new_era.created_at.isoformat(),
+            "message": "Era posted successfully"
         }
 
     except Exception as e:
-        logger.error(f"Error saving era for user {era_data.user_id}: {e}")
+        logger.error(f"Error posting era for user {era_data.user_id}: {e}")
         db.rollback()
         return {
             "status": "error",
@@ -1265,9 +1267,17 @@ async def send_follow_request(request_data: FollowRequestCreate):
 
         logger.info(f"✅ User {request_data.requester_id} sent follow request to {request_data.requested_id}")
 
+        # Create era notification for User B (the requested user)
+        requester_name = requester.name if requester.name else requester.username
+        era_notification = Era(
+            user_id=request_data.requested_id,  # Notification belongs to User B
+            content=f"{requester_name} wants to follow you"
+        )
+        db.add(era_notification)
+        db.commit()
+
         # Send push notification to the requested user (User B)
         if requested.device_token:
-            requester_name = requester.name if requester.name else requester.username
             await send_follow_request_notification(
                 device_token=requested.device_token,
                 requester_name=requester_name
@@ -1388,10 +1398,55 @@ async def accept_follow_request(request_data: FollowActionRequest):
 
         logger.info(f"✅ User {request_data.requested_id} accepted follow from {request_data.requester_id}")
 
+        # Generate AI message for era notification
+        accepter_name = accepter.name if accepter.name else accepter.username
+        accepter_conversations = accepter.conversations if accepter.conversations else []
+
+        # Generate personalized acceptance message with Claude
+        notification_message = f"{accepter_name} accepted your follow request"
+        if accepter_conversations and len(accepter_conversations) > 0:
+            try:
+                from anthropic import Anthropic
+                client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+                prompt = f"""Generate a fun notification for when someone accepts a follow request.
+
+User who accepted: {accepter_name}
+Their conversations: {json.dumps(accepter_conversations)}
+
+Write: "{accepter_name} accepted your follow request, gear up theyre entering [describe their current era/vibe]"
+
+Requirements:
+- ONE sentence
+- 15-25 words
+- Lowercase, casual, gen-z
+- No emojis
+- Based on their conversations, what era are they in?
+
+Example: "sarah accepted your follow request, gear up she's entering her law school and travel planning era"
+
+Return ONLY the text, no quotes."""
+
+                response = client.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=100,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+
+                notification_message = response.content[0].text.strip().strip('"\'')
+            except Exception as e:
+                logger.error(f"Error generating AI message: {e}")
+
+        # Create era notification for User A (the requester)
+        era_notification = Era(
+            user_id=request_data.requester_id,  # Notification belongs to User A
+            content=notification_message
+        )
+        db.add(era_notification)
+        db.commit()
+
         # Send push notification to the requester (User A) that their request was accepted
         if requester and requester.device_token:
-            accepter_name = accepter.name if accepter.name else accepter.username
-            accepter_conversations = accepter.conversations if accepter.conversations else []
             await send_follow_accepted_notification(
                 device_token=requester.device_token,
                 accepter_name=accepter_name,
@@ -1722,6 +1777,93 @@ Return ONLY the text, no quotes or explanations."""
 
     except Exception as e:
         logger.error(f"Error fetching feed notifications for {user_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+@app.get("/feed/{user_id}")
+async def get_feed(user_id: str):
+    """
+    Get feed for a user: eras from people they follow + their own notifications.
+
+    Flow:
+    1. Find who user follows
+    2. Get all eras from followed users (ordered by time)
+    3. Get user's own notifications (follow requests, follow accepts)
+    4. Combine and sort by time (newest at bottom for scrolling)
+
+    Args:
+        user_id: Alice's user ID
+
+    Returns:
+        Combined feed of eras and notifications, sorted oldest to newest
+    """
+    db = SessionLocal()
+    try:
+        # 1. Find who this user follows
+        follows = db.query(Follow).filter(
+            Follow.follower_id == user_id
+        ).all()
+
+        followed_user_ids = [f.following_id for f in follows]
+
+        # 2. Get all eras from followed users (their era posts)
+        feed_items = []
+
+        if followed_user_ids:
+            eras_from_followed = db.query(Era).filter(
+                Era.user_id.in_(followed_user_ids)
+            ).order_by(Era.created_at.asc()).all()
+
+            for era in eras_from_followed:
+                poster = db.query(User).filter(User.id == era.user_id).first()
+                feed_items.append({
+                    "type": "era",
+                    "id": era.id,
+                    "user_id": era.user_id,
+                    "username": poster.username if poster else "unknown",
+                    "name": poster.name if poster else "Unknown",
+                    "content": era.content,
+                    "created_at": era.created_at.isoformat()
+                })
+
+        # 3. Get user's own notifications (follow requests and accepts)
+        user_notifications = db.query(Era).filter(
+            Era.user_id == user_id
+        ).order_by(Era.created_at.asc()).all()
+
+        for notif in user_notifications:
+            # Determine notification type based on content
+            if "wants to follow you" in notif.content:
+                notif_type = "follow_request"
+            elif "accepted your follow request" in notif.content:
+                notif_type = "follow_accept"
+            else:
+                notif_type = "notification"
+
+            feed_items.append({
+                "type": notif_type,
+                "id": notif.id,
+                "user_id": notif.user_id,
+                "content": notif.content,
+                "created_at": notif.created_at.isoformat()
+            })
+
+        # 4. Sort all items by created_at (oldest to newest - bottom is newest)
+        feed_items.sort(key=lambda x: x["created_at"])
+
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "count": len(feed_items),
+            "feed": feed_items
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching feed for {user_id}: {e}")
         return {
             "status": "error",
             "error": str(e)

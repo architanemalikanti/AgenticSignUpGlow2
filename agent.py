@@ -3,6 +3,7 @@ import operator
 import os
 from langchain_core.messages import AnyMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
+import anthropic
 
 
 class AgentState(TypedDict):
@@ -33,18 +34,14 @@ class Agent:
         try:
             message = self.model.invoke(messages)
             return {"messages": [message]}
-        except Exception as e:
-            # Check if it's an Anthropic overload error
-            error_str = str(e)
-            is_overload = "overloaded_error" in error_str or "Overloaded" in error_str
+        except anthropic.APIStatusError as e:
+            # Catch Anthropic API errors specifically (before they get wrapped by httpx)
+            error_body = getattr(e, 'body', {})
+            error_type = error_body.get('error', {}).get('type', '') if isinstance(error_body, dict) else ''
 
-            # Debug logging
-            print(f"🔍 DEBUG: error_str = {error_str}")
-            print(f"🔍 DEBUG: is_overload = {is_overload}")
-            print(f"🔍 DEBUG: self.fallback_model = {self.fallback_model}")
-            print(f"🔍 DEBUG: has fallback_model_bound = {hasattr(self, 'fallback_model_bound')}")
+            print(f"🔍 DEBUG: Caught APIStatusError - type: {error_type}")
 
-            if is_overload and self.fallback_model:
+            if error_type == 'overloaded_error' and self.fallback_model:
                 print(f"⚠️ Anthropic overloaded, falling back to OpenAI...")
                 try:
                     message = self.fallback_model_bound.invoke(messages)
@@ -53,7 +50,28 @@ class Agent:
                     print(f"❌ FALLBACK ERROR: {type(fallback_error).__name__}: {str(fallback_error)}")
                     raise fallback_error
             else:
-                # Log the actual error before it gets masked by httpx
+                # Re-raise if not overload error or no fallback available
+                print(f"❌ ANTHROPIC API ERROR: {type(e).__name__}: {str(e)}")
+                raise
+        except Exception as e:
+            # Catch any other errors (like httpx.ResponseNotRead)
+            error_str = str(e)
+
+            # Even if we catch httpx.ResponseNotRead, check if it mentions overload
+            is_overload = "overloaded_error" in error_str or "Overloaded" in error_str
+
+            print(f"🔍 DEBUG: Caught {type(e).__name__}: {error_str}")
+            print(f"🔍 DEBUG: is_overload = {is_overload}")
+
+            if is_overload and self.fallback_model:
+                print(f"⚠️ Anthropic overloaded (detected in wrapped error), falling back to OpenAI...")
+                try:
+                    message = self.fallback_model_bound.invoke(messages)
+                    return {"messages": [message]}
+                except Exception as fallback_error:
+                    print(f"❌ FALLBACK ERROR: {type(fallback_error).__name__}: {str(fallback_error)}")
+                    raise fallback_error
+            else:
                 print(f"❌ API ERROR: {type(e).__name__}: {str(e)}")
                 import traceback
                 traceback.print_exc()

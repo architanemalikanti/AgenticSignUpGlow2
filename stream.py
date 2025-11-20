@@ -1675,6 +1675,53 @@ async def decline_follow_request(request_data: FollowActionRequest):
     finally:
         db.close()
 
+@app.post("/follow/cancel")
+async def cancel_follow_request(request_data: FollowActionRequest):
+    """
+    User A cancels their own follow request to User B.
+    This happens when user clicks "Requested" button again to unrequest.
+
+    Request body:
+    {
+        "requester_id": "user_a_id",  // Your ID (the one who sent the request)
+        "requested_id": "user_b_id"   // The person you sent request to
+    }
+    """
+    db = SessionLocal()
+    try:
+        # Find the pending request
+        pending_request = db.query(FollowRequest).filter(
+            FollowRequest.requester_id == request_data.requester_id,
+            FollowRequest.requested_id == request_data.requested_id
+        ).first()
+
+        if not pending_request:
+            return {
+                "status": "error",
+                "message": "Follow request not found"
+            }
+
+        # Delete the pending request
+        db.delete(pending_request)
+        db.commit()
+
+        logger.info(f"🔙 User {request_data.requester_id} cancelled follow request to {request_data.requested_id}")
+
+        return {
+            "status": "success",
+            "message": "Follow request cancelled"
+        }
+
+    except Exception as e:
+        logger.error(f"Error cancelling follow request: {e}")
+        db.rollback()
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
 @app.get("/user/{user_id}/followers")
 async def get_followers(user_id: str):
     """

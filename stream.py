@@ -370,7 +370,7 @@ IMPORTANT FLOW:
 - After collecting name, username, and email, ask for password
 - After password is confirmed, immediately call generate_verification_code
 - **CRITICAL: After calling generate_verification_code, you MUST ask them to check their email and provide the 6-digit code**
-  Example: "just sent a code to {email}! check your email and drop the 6-digit code here when you get it"
+  Example: "just sent a code to your email! check your inbox and drop the 6-digit code here when you get it"
 - If verification status shows ⏳ (code sent, waiting), ASK for the code: "what's the verification code from your email?"
 - When they provide the code, call test_verification_code with that code
 - If test_verification_code returns "incorrect", ask them to try again

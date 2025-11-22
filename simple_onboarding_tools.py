@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 from redis_client import r
 import json
 import logging
+import bcrypt
 
 logger = logging.getLogger(__name__)
 
@@ -225,13 +226,21 @@ def finalize_simple_signup(session_id: str) -> str:
             db.commit()
             db.refresh(new_user)
 
-            # Store user_id in Redis
+            # Generate JWT tokens
+            from jwt_utils import create_access_token, create_refresh_token
+            access_token = create_access_token(user_id)
+            refresh_token = create_refresh_token(user_id)
+
+            # Store user_id and tokens in Redis
             session_data['user_id'] = user_id
+            session_data['access_token'] = access_token
+            session_data['refresh_token'] = refresh_token
             session_data['signup_data']['favorite_color'] = signup_data['favorite_color']
             session_data['signup_data']['city'] = signup_data['city']
             r.set(redis_key, json.dumps(session_data))
 
             logger.info(f"✅ Created user {user_id} with username {signup_data['username']}")
+            logger.info(f"🔑 Generated JWT tokens for user {user_id}")
 
             return "verified"
 

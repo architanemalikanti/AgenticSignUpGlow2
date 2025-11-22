@@ -215,6 +215,8 @@ def finalize_simple_signup(session_id: str) -> str:
                 password=hashed_password,
                 occupation=signup_data['occupation'],
                 gender=signup_data['gender'],
+                favorite_color=signup_data['favorite_color'],
+                city=signup_data['city'],
                 session_id=session_id,
                 created_at=datetime.utcnow()
             )

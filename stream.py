@@ -466,8 +466,8 @@ DO NOT proceed with any other questions until they provide the code!"""
 
         # If signup succeeded, send completion event
         if signup_complete:
-            logger.info(f"✅ Sending signup_complete to iOS for session {session_id}")
-            yield f"event: signup_complete\ndata: {json.dumps({'session_id': session_id})}\n\n"
+            logger.info(f"✅ Sending onboarding_complete to iOS for session {session_id}")
+            yield f"event: onboarding_complete\ndata: {json.dumps({'session_id': session_id})}\n\n"
 
         yield "event: done\ndata: {}\n\n"
 

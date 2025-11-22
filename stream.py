@@ -265,6 +265,122 @@ async def create_redis_key():
     session_id = str(uuid.uuid4())
     return {"session_id": session_id}
 
+@app.get("/simple/stream")
+async def simple_onboarding_stream(q: str = Query(""), session_id: str = Query(...)):
+    """
+    Simple SSE streaming endpoint for streamlined onboarding.
+    Collects: name, username, password, confirm password, favorite color, city, occupation
+
+    Query params:
+    - q: user message
+    - session_id: unique session identifier (required)
+    """
+    async def event_gen():
+        from simple_onboarding_tools import (
+            set_simple_name,
+            set_simple_username,
+            set_simple_password,
+            confirm_simple_password,
+            set_favorite_color,
+            set_city,
+            set_simple_occupation,
+            finalize_simple_signup
+        )
+
+        # Simple prompt for collecting basic info
+        simple_prompt = """You are a friendly onboarding assistant helping new users sign up.
+
+Your job is to collect these 7 pieces of information in order:
+1. Name (first name)
+2. Username (no @ symbol)
+3. Password
+4. Confirm password (must match)
+5. Favorite color
+6. City they live in
+7. Occupation
+
+Be casual, friendly, and conversational. Keep responses short (1-2 sentences max).
+After collecting all info, call finalize_simple_signup to create their account.
+
+When password is confirmed successfully, immediately ask for their favorite color.
+When all info is collected, call finalize_simple_signup."""
+
+        messages = [HumanMessage(content=q)]
+        thread = {"configurable": {"thread_id": session_id}}
+
+        signup_complete = False
+
+        # Simple tools for this flow
+        simple_tools = [
+            set_simple_name,
+            set_simple_username,
+            set_simple_password,
+            confirm_simple_password,
+            set_favorite_color,
+            set_city,
+            set_simple_occupation,
+            finalize_simple_signup
+        ]
+
+        async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
+            # Use OpenAI if global flag is set, otherwise use Anthropic
+            global use_openai_primary
+            primary_model = fallback_model if (use_openai_primary and fallback_model) else model
+
+            try:
+                async_abot = Agent(primary_model, simple_tools, system=simple_prompt, checkpointer=async_memory, fallback_model=fallback_model)
+                async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
+                    # Check if signup is complete
+                    if ev["event"] == "on_tool_end":
+                        tool_name = ev.get("name", "")
+                        tool_output = ev.get("data", {}).get("output", "")
+
+                        if tool_name == "finalize_simple_signup" and tool_output == "verified":
+                            signup_complete = True
+                            logger.info(f"✅ Simple signup completed for session {session_id}")
+
+                    # Stream LLM tokens
+                    if ev["event"] == "on_chat_model_stream":
+                        content = ev["data"]["chunk"].content
+                        if content:
+                            yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+
+            except Exception as e:
+                # Check if Anthropic is overloaded
+                error_str = str(e)
+                is_overload = "overloaded_error" in error_str or "Overloaded" in error_str or "529" in error_str
+
+                if is_overload and fallback_model and not use_openai_primary:
+                    logger.info(f"⚠️ Anthropic overloaded! Switching to OpenAI for future requests...")
+                    use_openai_primary = True
+                    # Retry THIS request with OpenAI
+                    async_abot = Agent(fallback_model, simple_tools, system=simple_prompt, checkpointer=async_memory, fallback_model=None)
+                    async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
+                        if ev["event"] == "on_tool_end":
+                            tool_name = ev.get("name", "")
+                            tool_output = ev.get("data", {}).get("output", "")
+
+                            if tool_name == "finalize_simple_signup" and tool_output == "verified":
+                                signup_complete = True
+                                logger.info(f"✅ Simple signup completed for session {session_id}")
+
+                        if ev["event"] == "on_chat_model_stream":
+                            content = ev["data"]["chunk"].content
+                            if content:
+                                yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+                else:
+                    raise
+
+        # If signup succeeded, send completion event
+        if signup_complete:
+            logger.info(f"✅ Sending signup_complete to iOS for session {session_id}")
+            yield f"event: signup_complete\ndata: {json.dumps({'session_id': session_id})}\n\n"
+
+        yield "event: done\ndata: {}\n\n"
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)
+
 @app.get("/poll/{session_id}")
 async def poll_user_id(session_id: str):
     """
@@ -1133,13 +1249,39 @@ async def push_era(era_data: EraPush):
 
         logger.info(f"✅ Posted era for user {era_data.user_id}: {era_data.era_text[:50]}...")
 
+        # Send push notifications to all followers
+        from push_notifications import send_era_notification
+
+        # Get all followers of this user
+        followers = db.query(Follow).filter(Follow.following_id == era_data.user_id).all()
+
+        logger.info(f"📢 Notifying {len(followers)} followers about new era")
+
+        for follow in followers:
+            # Get the follower's info
+            follower = db.query(User).filter(User.id == follow.follower_id).first()
+
+            if follower and follower.device_token:
+                try:
+                    await send_era_notification(
+                        device_token=follower.device_token,
+                        poster_name=user.name,
+                        era_content=era_data.era_text
+                    )
+                    logger.info(f"✅ Sent era notification to {follower.name}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to send era notification to {follower.name}: {e}")
+            else:
+                logger.debug(f"⚠️  Skipping notification for {follower.name if follower else 'unknown'} (no device token)")
+
         return {
             "status": "success",
             "era_id": new_era.id,
             "user_id": era_data.user_id,
             "content": era_data.era_text,
             "created_at": new_era.created_at.isoformat(),
-            "message": "Era posted successfully"
+            "message": "Era posted successfully",
+            "notifications_sent": sum(1 for f in followers if db.query(User).filter(User.id == f.follower_id).first() and db.query(User).filter(User.id == f.follower_id).first().device_token)
         }
 
     except Exception as e:

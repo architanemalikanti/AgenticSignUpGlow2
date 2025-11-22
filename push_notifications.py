@@ -233,3 +233,32 @@ Return ONLY the notification text, no quotes or explanations."""
             "accepter_name": accepter_name
         }
     )
+
+
+async def send_era_notification(device_token: str, poster_name: str, era_content: str) -> bool:
+    """
+    Send a notification when someone you follow posts a new era.
+
+    Args:
+        device_token: The device token of the follower
+        poster_name: Name of the user who posted the era
+        era_content: The era text content
+
+    Returns:
+        True if notification sent successfully
+    """
+    # Truncate era content if too long for notification
+    max_body_length = 100
+    truncated_era = era_content if len(era_content) <= max_body_length else era_content[:max_body_length] + "..."
+
+    return await send_push_notification(
+        device_token=device_token,
+        title=f"{poster_name} posted a new era",
+        body=truncated_era,
+        badge=1,
+        data={
+            "type": "new_era",
+            "poster_name": poster_name,
+            "era_content": era_content
+        }
+    )

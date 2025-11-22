@@ -269,7 +269,8 @@ async def create_redis_key():
 async def simple_onboarding_stream(q: str = Query(""), session_id: str = Query(...)):
     """
     Simple SSE streaming endpoint for streamlined onboarding.
-    Collects: name, username, password, confirm password, favorite color, city, occupation
+    Collects: name, username, email, password, confirm password, email verification code,
+    favorite color, city, occupation, gender
 
     Query params:
     - q: user message
@@ -286,24 +287,112 @@ async def simple_onboarding_stream(q: str = Query(""), session_id: str = Query(.
             set_simple_occupation,
             finalize_simple_signup
         )
+        from tools import get_user_gender, get_email, generate_verification_code
+        from finalize_user import test_verification_code
+        import json
+        from redis_client import r
 
-        # Simple prompt for collecting basic info
-        simple_prompt = """You are a friendly onboarding assistant helping new users sign up.
+        # Get current session status from Redis
+        redis_key = f"session:{session_id}"
+        session_data_str = r.get(redis_key)
 
-Your job is to collect these 7 pieces of information in order:
-1. Name (first name)
-2. Username (no @ symbol)
-3. Password
-4. Confirm password (must match)
-5. Favorite color
-6. City they live in
-7. Occupation
+        if session_data_str:
+            session_data = json.loads(session_data_str)
+            signup_data = session_data.get('signup_data', {})
+        else:
+            # Initialize empty session
+            signup_data = {}
+            session_data = {"messages": [], "signup_data": {}}
+            r.set(redis_key, json.dumps(session_data))
+
+        # Build dynamic status for each field
+        name_status = f"✅ Name: {signup_data.get('name')}" if signup_data.get('name') else "❌ Name not collected yet"
+        username_status = f"✅ Username: {signup_data.get('username')}" if signup_data.get('username') else "❌ Username not collected yet"
+        email_status = f"✅ Email: {signup_data.get('email')}" if signup_data.get('email') else "❌ Email not collected yet"
+        password_status = "✅ Password set" if signup_data.get('password') else "❌ Password not set yet"
+
+        # Check verification status
+        verification_code_sent = bool(signup_data.get('verificationCodeGenerated'))
+        email_verified = session_data.get('verified')
+
+        if email_verified:
+            verification_status = "✅ Email verified successfully"
+        elif verification_code_sent:
+            verification_status = "⏳ Verification code sent - WAITING for user to provide the code"
+        else:
+            verification_status = "❌ Verification code not sent yet"
+
+        color_status = f"✅ Favorite color: {signup_data.get('favorite_color')}" if signup_data.get('favorite_color') else "❌ Favorite color not collected yet"
+        city_status = f"✅ City: {signup_data.get('city')}" if signup_data.get('city') else "❌ City not collected yet"
+        occupation_status = f"✅ Occupation: {signup_data.get('occupation')}" if signup_data.get('occupation') else "❌ Occupation not collected yet"
+        gender_status = f"✅ Gender: {signup_data.get('gender')}" if signup_data.get('gender') else "❌ Gender not collected yet"
+
+        # Build dynamic prompt
+        simple_prompt = f"""You are a friendly onboarding assistant helping new users sign up.
+
+IMPORTANT: The session_id for all tools is: {session_id}
+You MUST use this exact session_id when calling any tools.
+
+📊 Current Signup Status:
+
+{name_status}
+{username_status}
+{email_status}
+{password_status}
+{verification_status}
+{color_status}
+{city_status}
+{occupation_status}
+{gender_status}
+
+---
+
+Your job is to collect these pieces of information in order (ONLY ask for ❌ missing fields):
+
+1. Name (first name) - use set_simple_name tool
+2. Username (no @ symbol) - use set_simple_username tool
+3. Email address - use get_email tool
+4. Password - use set_simple_password tool
+5. Confirm password (must match) - use confirm_simple_password tool
+6. Send verification code to email - use generate_verification_code tool (ONLY after password confirmed)
+7. **ASK for the verification code they received in their email** - be explicit! say "check your email for the code"
+8. Verify the code - use test_verification_code tool with the code they provide
+9. Favorite color - use set_favorite_color tool (ONLY after email verified)
+10. City they live in - use set_city tool
+11. Occupation - use set_simple_occupation tool
+12. Gender - use get_user_gender tool
 
 Be casual, friendly, and conversational. Keep responses short (1-2 sentences max).
-After collecting all info, call finalize_simple_signup to create their account.
+Use lowercase, gen-z vibe. Be warm and genuine.
 
-When password is confirmed successfully, immediately ask for their favorite color.
-When all info is collected, call finalize_simple_signup."""
+IMPORTANT FLOW:
+- SKIP any fields that show ✅ - never ask again!
+- After collecting name, username, and email, ask for password
+- After password is confirmed, immediately call generate_verification_code
+- **CRITICAL: After calling generate_verification_code, you MUST ask them to check their email and provide the 6-digit code**
+  Example: "just sent a code to {email}! check your email and drop the 6-digit code here when you get it"
+- If verification status shows ⏳ (code sent, waiting), ASK for the code: "what's the verification code from your email?"
+- When they provide the code, call test_verification_code with that code
+- If test_verification_code returns "incorrect", ask them to try again
+- Only after email is verified (test_verification_code returns "verified"), continue with favorite color, city, occupation, and gender
+- After collecting all info AND email is verified, call finalize_simple_signup to create their account
+
+**SPECIAL CASE - If verification status is ⏳:**
+This means a code was sent but user hasn't provided it yet.
+YOU MUST ask: "hey! what's the verification code from your email? it should be 6 digits"
+
+When test_verification_code returns "verified", say something like "yay! let's keep going" and move to favorite color.
+When all info is collected AND email verified, call finalize_simple_signup."""
+
+        # Add dynamic reminder based on verification status
+        if verification_code_sent and not email_verified:
+            simple_prompt += """
+
+🚨 URGENT REMINDER:
+The verification status shows ⏳ which means a code was already sent to the user's email.
+Your NEXT message MUST ask them for the verification code!
+Say something like: "hey! what's the verification code from your email? it should be 6 digits ✨"
+DO NOT proceed with any other questions until they provide the code!"""
 
         messages = [HumanMessage(content=q)]
         thread = {"configurable": {"thread_id": session_id}}
@@ -314,11 +403,15 @@ When all info is collected, call finalize_simple_signup."""
         simple_tools = [
             set_simple_name,
             set_simple_username,
+            get_email,
             set_simple_password,
             confirm_simple_password,
+            generate_verification_code,
+            test_verification_code,
             set_favorite_color,
             set_city,
             set_simple_occupation,
+            get_user_gender,
             finalize_simple_signup
         ]
 

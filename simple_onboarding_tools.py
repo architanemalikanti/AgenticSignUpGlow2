@@ -184,7 +184,7 @@ def finalize_simple_signup(session_id: str) -> str:
         signup_data = session_data.get('signup_data', {})
 
         # Validate all required fields
-        required_fields = ['name', 'username', 'password', 'favorite_color', 'city', 'occupation']
+        required_fields = ['name', 'username', 'email', 'password', 'favorite_color', 'city', 'occupation', 'gender']
         missing_fields = [f for f in required_fields if not signup_data.get(f)]
 
         if missing_fields:
@@ -193,21 +193,28 @@ def finalize_simple_signup(session_id: str) -> str:
         # Create user in database
         db = SessionLocal()
         try:
-            # Hash password
-            hashed_password = bcrypt.hashpw(
-                signup_data['password'].encode('utf-8'),
-                bcrypt.gensalt()
-            ).decode('utf-8')
+            # Hash password (check if already hashed, if not hash it)
+            password_value = signup_data['password']
+            if password_value.startswith('pbkdf2:'):
+                # Already hashed from set_password tool
+                hashed_password = password_value
+            else:
+                # Plain password, hash it with bcrypt
+                hashed_password = bcrypt.hashpw(
+                    password_value.encode('utf-8'),
+                    bcrypt.gensalt()
+                ).decode('utf-8')
 
             # Create user
             user_id = str(uuid.uuid4())
             new_user = User(
                 id=user_id,
                 username=signup_data['username'],
-                email=f"{signup_data['username']}@temp.com",  # Temporary email
+                email=signup_data['email'],  # Use actual email from signup
                 name=signup_data['name'],
                 password=hashed_password,
                 occupation=signup_data['occupation'],
+                gender=signup_data['gender'],
                 session_id=session_id,
                 created_at=datetime.utcnow()
             )

@@ -287,7 +287,16 @@ async def simple_onboarding_stream(q: str = Query(""), session_id: str = Query(.
             set_simple_occupation,
             finalize_simple_signup
         )
-        from tools import get_user_gender, get_email, generate_verification_code
+        from tools import (
+            get_user_gender,
+            get_email,
+            generate_verification_code,
+            switch_to_login_mode,
+            get_login_username,
+            get_login_password,
+            verify_login_credentials,
+            finalize_login
+        )
         from finalize_user import test_verification_code
         import json
         from redis_client import r
@@ -327,8 +336,45 @@ async def simple_onboarding_stream(q: str = Query(""), session_id: str = Query(.
         occupation_status = f"✅ Occupation: {signup_data.get('occupation')}" if signup_data.get('occupation') else "❌ Occupation not collected yet"
         gender_status = f"✅ Gender: {signup_data.get('gender')}" if signup_data.get('gender') else "❌ Gender not collected yet"
 
+        # Check if user is in login mode
+        is_login_mode = session_data.get("is_login")
+
         # Build dynamic prompt
-        simple_prompt = f"""You are a friendly onboarding assistant helping new users sign up.
+        if is_login_mode:
+            # Login mode prompt
+            login_data = session_data.get("login_data", {})
+            has_username = bool(login_data.get("username"))
+            has_password = bool(login_data.get("password"))
+            login_verified = session_data.get("login_verified", False)
+
+            simple_prompt = f"""You are a friendly assistant helping users log in.
+
+IMPORTANT: The session_id for all tools is: {session_id}
+You MUST use this exact session_id when calling any tools.
+
+📊 Current Login Status:
+
+{"✅ Username/email saved" if has_username else "❌ Username/email not provided yet"}
+{"✅ Password saved" if has_password else "❌ Password not provided yet"}
+{"✅ Credentials verified" if login_verified else "❌ Credentials not verified yet"}
+
+---
+
+Your job is to help the user log in:
+
+1. If username ❌: Ask for their username or email - use get_login_username tool
+2. If password ❌: Ask for their password - use get_login_password tool
+3. If credentials not verified ❌: Call verify_login_credentials tool
+4. If verified ✅: Call finalize_login tool
+
+Be casual, friendly, lowercase gen-z vibes. Keep responses short (1-2 sentences max).
+
+When verify_login_credentials returns "verified", immediately call finalize_login.
+When finalize_login returns "verified", say "welcome back! 🌸" and the user is logged in."""
+
+        else:
+            # Signup mode prompt
+            simple_prompt = f"""You are a friendly onboarding assistant helping new users sign up or log in.
 
 IMPORTANT: The session_id for all tools is: {session_id}
 You MUST use this exact session_id when calling any tools.
@@ -346,6 +392,10 @@ You MUST use this exact session_id when calling any tools.
 {gender_status}
 
 ---
+
+FIRST: Ask if the user wants to SIGN UP or LOG IN.
+- If they want to log in, call switch_to_login_mode tool first, then proceed with login flow.
+- If they want to sign up, continue with signup flow below.
 
 Your job is to collect these pieces of information in order (ONLY ask for ❌ missing fields):
 
@@ -398,6 +448,7 @@ DO NOT proceed with any other questions until they provide the code!"""
         thread = {"configurable": {"thread_id": session_id}}
 
         signup_complete = False
+        login_complete = False
 
         # Simple tools for this flow
         simple_tools = [
@@ -412,7 +463,13 @@ DO NOT proceed with any other questions until they provide the code!"""
             set_city,
             set_simple_occupation,
             get_user_gender,
-            finalize_simple_signup
+            finalize_simple_signup,
+            # Login tools
+            switch_to_login_mode,
+            get_login_username,
+            get_login_password,
+            verify_login_credentials,
+            finalize_login
         ]
 
         async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
@@ -423,7 +480,7 @@ DO NOT proceed with any other questions until they provide the code!"""
             try:
                 async_abot = Agent(primary_model, simple_tools, system=simple_prompt, checkpointer=async_memory, fallback_model=fallback_model)
                 async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
-                    # Check if signup is complete
+                    # Check if signup or login is complete
                     if ev["event"] == "on_tool_end":
                         tool_name = ev.get("name", "")
                         tool_output = ev.get("data", {}).get("output", "")
@@ -431,6 +488,10 @@ DO NOT proceed with any other questions until they provide the code!"""
                         if tool_name == "finalize_simple_signup" and tool_output == "verified":
                             signup_complete = True
                             logger.info(f"✅ Simple signup completed for session {session_id}")
+
+                        if tool_name == "finalize_login" and tool_output == "verified":
+                            login_complete = True
+                            logger.info(f"✅ Simple login completed for session {session_id}")
 
                     # Stream LLM tokens
                     if ev["event"] == "on_chat_model_stream":
@@ -457,6 +518,10 @@ DO NOT proceed with any other questions until they provide the code!"""
                                 signup_complete = True
                                 logger.info(f"✅ Simple signup completed for session {session_id}")
 
+                            if tool_name == "finalize_login" and tool_output == "verified":
+                                login_complete = True
+                                logger.info(f"✅ Simple login completed for session {session_id}")
+
                         if ev["event"] == "on_chat_model_stream":
                             content = ev["data"]["chunk"].content
                             if content:
@@ -466,6 +531,11 @@ DO NOT proceed with any other questions until they provide the code!"""
 
         # If signup succeeded, send completion event
         if signup_complete:
+            logger.info(f"✅ Sending onboarding_complete to iOS for session {session_id}")
+            yield f"event: onboarding_complete\ndata: {json.dumps({'session_id': session_id})}\n\n"
+
+        # If login succeeded, send completion event
+        if login_complete:
             logger.info(f"✅ Sending onboarding_complete to iOS for session {session_id}")
             yield f"event: onboarding_complete\ndata: {json.dumps({'session_id': session_id})}\n\n"
 

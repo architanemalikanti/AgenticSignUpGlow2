@@ -2324,6 +2324,309 @@ async def get_feed(user_id: str):
     finally:
         db.close()
 
+
+@app.get("/caption/stream")
+async def caption_generation_stream(q: str = Query(""), session_id: str = Query(...)):
+    """
+    SSE streaming endpoint for AI-assisted caption generation.
+
+    Query params:
+    - q: user message
+    - session_id: unique session identifier (required)
+
+    The AI will chat with the user to understand what they want to post,
+    then generate 2 captions and a location. When ready, sends conversation_complete event.
+    """
+    async def event_gen():
+        import json
+        from redis_client import r
+        from anthropic import Anthropic
+
+        # Get or initialize caption session in Redis
+        redis_key = f"caption_session:{session_id}"
+        session_data_str = r.get(redis_key)
+
+        if session_data_str:
+            session_data = json.loads(session_data_str)
+        else:
+            # Initialize new caption session
+            session_data = {
+                "messages": [],
+                "caption_data": {}
+            }
+
+        # Add user message to conversation history
+        if q:
+            session_data["messages"].append({"role": "user", "content": q})
+
+        # Build conversation for Anthropic
+        conversation_messages = session_data["messages"].copy()
+
+        # System prompt
+        system_prompt = """You are a creative assistant helping users craft the perfect social media post.
+
+Your job:
+1. Chat with the user to understand what they want to post about
+2. Ask follow-up questions if needed to get the vibe/theme
+3. When you have enough info, generate 2 caption options and a location
+4. Detect when the user is ready to post
+
+Conversation style:
+- Be casual, friendly, lowercase gen-z vibes
+- Ask clarifying questions if needed (e.g., "ooh what's the vibe? girlboss? cozy? party mode?")
+- Keep responses short (1-2 sentences)
+- Match their energy and vibe
+
+When the user says they're ready or you have enough info:
+1. Say: "ok on it! ready to post! 🎨"
+2. Then immediately generate the content
+
+To generate content, respond with EXACTLY this JSON format (no other text):
+{
+  "READY_TO_POST": true,
+  "caption1": "first caption option here with emojis",
+  "caption2": "second caption option here with emojis",
+  "location": "location name or empty string if not applicable"
+}
+
+Caption requirements:
+- 15-30 words each
+- Lowercase, casual, gen-z style
+- Include emojis
+- Match the vibe/theme the user described (girlboss, cozy, party, etc.)
+
+Examples of when to generate:
+- User: "i went to the beach today, sunset vibes" → generate beach sunset captions
+- User: "yeah i'm ready to post!" → generate with info you collected
+- User: "girlboss energy post about my new job" → generate empowering career captions"""
+
+        try:
+            # Call Anthropic API
+            client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+            # Build messages for Claude
+            messages_for_claude = []
+            for msg in conversation_messages:
+                messages_for_claude.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=500,
+                system=system_prompt,
+                messages=messages_for_claude,
+                stream=True
+            )
+
+            assistant_response = ""
+            ready_to_post = False
+
+            # Stream the response
+            for chunk in response:
+                if chunk.type == "content_block_delta":
+                    if hasattr(chunk.delta, "text"):
+                        text = chunk.delta.text
+                        assistant_response += text
+
+                        # Stream token to frontend
+                        yield f"event: token\ndata: {json.dumps({'content': text})}\n\n"
+
+            # Save assistant response to conversation history
+            session_data["messages"].append({
+                "role": "assistant",
+                "content": assistant_response
+            })
+
+            # Check if response contains the READY_TO_POST JSON
+            if "READY_TO_POST" in assistant_response:
+                try:
+                    # Extract JSON from response
+                    json_start = assistant_response.find("{")
+                    json_end = assistant_response.rfind("}") + 1
+                    json_str = assistant_response[json_start:json_end]
+
+                    caption_data = json.loads(json_str)
+
+                    if caption_data.get("READY_TO_POST"):
+                        # Store generated content in Redis
+                        session_data["caption_data"] = {
+                            "caption1": caption_data.get("caption1", ""),
+                            "caption2": caption_data.get("caption2", ""),
+                            "location": caption_data.get("location", "")
+                        }
+
+                        ready_to_post = True
+                        logger.info(f"✅ Generated captions for session {session_id}")
+
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse caption JSON: {e}")
+
+            # Save session back to Redis
+            r.set(redis_key, json.dumps(session_data))
+
+            # If ready to post, send conversation_complete event
+            if ready_to_post:
+                logger.info(f"✅ Sending conversation_complete to iOS for session {session_id}")
+                yield f"event: conversation_complete\ndata: {json.dumps({'session_id': session_id})}\n\n"
+
+        except Exception as e:
+            logger.error(f"Error in caption generation: {e}")
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+        yield "event: done\ndata: {}\n\n"
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)
+
+
+@app.get("/caption/poll/{session_id}")
+async def poll_caption_data(session_id: str):
+    """
+    Poll endpoint for iOS to retrieve generated caption data.
+
+    Returns:
+    {
+        "status": "ready",
+        "caption1": "first caption...",
+        "caption2": "second caption...",
+        "location": "beach"
+    }
+    """
+    try:
+        redis_key = f"caption_session:{session_id}"
+        session_data_str = r.get(redis_key)
+
+        if not session_data_str:
+            return {"status": "not_found", "message": "Session not found"}
+
+        session_data = json.loads(session_data_str)
+        caption_data = session_data.get("caption_data", {})
+
+        if caption_data and caption_data.get("caption1"):
+            return {
+                "status": "ready",
+                "caption1": caption_data.get("caption1", ""),
+                "caption2": caption_data.get("caption2", ""),
+                "location": caption_data.get("location", ""),
+                "session_id": session_id
+            }
+        else:
+            return {
+                "status": "processing",
+                "message": "Captions not ready yet"
+            }
+
+    except Exception as e:
+        logger.error(f"Error polling caption data: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+class GenerateCaptionRequest(BaseModel):
+    descriptions: List[str]
+
+
+@app.post("/generate/caption")
+async def generate_caption(request: GenerateCaptionRequest):
+    """
+    Generate an iconic title, caption, and location from user descriptions.
+
+    Input:
+    {
+        "descriptions": ["went to the beach today", "sunset was beautiful"]
+    }
+
+    Output:
+    {
+        "title": "Golden Hour Bliss",
+        "caption": "chasing sunsets and making memories 🌅✨",
+        "location": "beach"
+    }
+    """
+    try:
+        from anthropic import Anthropic
+
+        # Join descriptions into a single context
+        descriptions_text = "\n".join([f"- {desc}" for desc in request.descriptions])
+
+        # Create prompt for Claude
+        prompt = f"""Based on these user descriptions, generate an iconic social media post:
+
+Descriptions:
+{descriptions_text}
+
+Generate a JSON response with:
+1. "title": A short, catchy, iconic title (2-4 words, capitalize each word)
+2. "caption": A fun, casual caption in lowercase gen-z style (15-25 words, can use emojis)
+3. "location": Extract or infer the location mentioned (single word or short phrase, lowercase)
+
+If no specific location is mentioned, infer it from context (e.g., "beach", "city", "home", "cafe").
+
+Requirements:
+- Title should be memorable and aesthetic
+- Caption should feel authentic and casual
+- Location should be concise
+- Return ONLY valid JSON, no other text
+
+Example output format:
+{{
+  "title": "Summer Nights",
+  "caption": "living for these warm evenings with good vibes and even better company 🌙✨",
+  "location": "rooftop"
+}}"""
+
+        # Call Anthropic API
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        # Extract response text
+        response_text = response.content[0].text.strip()
+
+        # Parse JSON from response
+        try:
+            # Remove markdown code blocks if present
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+
+            result = json.loads(response_text.strip())
+
+            # Validate required fields
+            if not all(key in result for key in ["title", "caption", "location"]):
+                raise ValueError("Missing required fields in generated response")
+
+            logger.info(f"✅ Generated caption: {result}")
+
+            return {
+                "status": "success",
+                "title": result["title"],
+                "caption": result["caption"],
+                "location": result["location"]
+            }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON from Claude: {response_text}")
+            return {
+                "status": "error",
+                "error": "Failed to parse AI response",
+                "raw_response": response_text
+            }
+
+    except Exception as e:
+        logger.error(f"Error generating caption: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("stream:app", host="0.0.0.0", port=8000, reload=True)

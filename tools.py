@@ -13,6 +13,7 @@ import secrets
 import smtplib
 from dateutil import parser
 from email.message import EmailMessage
+import bcrypt
 from email_validator import validate_email, EmailNotValidError
 
 load_dotenv()  # loads the .env file
@@ -495,8 +496,33 @@ def verify_login_credentials(session_id: str) -> str:
             print(f"❌ Login failed: User '{username}' not found")
             return "incorrect"
 
-        # Check password
-        if not check_password_hash(user.password, password):
+        # Check if user has a password set
+        if not user.password:
+            print(f"❌ Login failed: User '{username}' has no password set")
+            return "incorrect"
+
+        # Check password - handle both bcrypt and Werkzeug formats
+        password_valid = False
+
+        # Try bcrypt format first (starts with $2b$ or $2a$ or $2y$)
+        if user.password.startswith('$2'):
+            try:
+                password_valid = bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8'))
+            except Exception as bcrypt_error:
+                print(f"⚠️ bcrypt check failed: {bcrypt_error}")
+
+        # Try Werkzeug format (starts with pbkdf2:)
+        elif user.password.startswith('pbkdf2:'):
+            try:
+                password_valid = check_password_hash(user.password, password)
+            except Exception as werkzeug_error:
+                print(f"⚠️ Werkzeug check failed: {werkzeug_error}")
+
+        # Unknown format
+        else:
+            print(f"⚠️ Unknown password hash format for user '{username}': {user.password[:20]}...")
+
+        if not password_valid:
             print(f"❌ Login failed: Invalid password for '{username}'")
             return "incorrect"
 

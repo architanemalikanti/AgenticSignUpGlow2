@@ -699,12 +699,12 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                 else:
                     raise
 
-        # If post was initiated, send redis_id for polling BEFORE done
+        yield "event: done\ndata: {}\n\n"
+
+        # If post was initiated, send redis_id for polling AFTER done
         if post_initiated and redis_id:
             logger.info(f"✅ Sending post_initiated event with redis_id: {redis_id}")
-            yield f"event: post_initiated\ndata: {json.dumps({{'user_id': user_id, 'redis_id': redis_id}})}\n\n"
-
-        yield "event: done\ndata: {}\n\n"
+            yield f"event: post_initiated\ndata: {json.dumps({'user_id': user_id, 'redis_id': redis_id})}\n\n"
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)

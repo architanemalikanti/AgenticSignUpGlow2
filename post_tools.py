@@ -101,19 +101,23 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
             # Get state from checkpointer
             state = await checkpointer.aget(thread)
 
-            logger.info(f"🔍 State type: {type(state)}, State: {state}")
+            logger.info(f"🔍 State type: {type(state)}")
 
             if not state:
                 raise Exception("No conversation history found - state is None")
 
-            # Access state values correctly - state.values is a dict, not a method
-            if not state.values:
-                raise Exception("No state values found")
+            # Checkpoint returns a CheckpointTuple with .values dict
+            checkpoint_values = state.values if hasattr(state, 'values') else state
+            logger.info(f"🔍 Checkpoint values type: {type(checkpoint_values)}")
 
-            if 'messages' not in state.values:
-                raise Exception(f"No messages in state. Keys: {state.values.keys()}")
+            # If values is a method, it's the wrong attribute
+            if callable(checkpoint_values):
+                raise Exception(f"checkpoint_values is callable! State attributes: {dir(state)}")
 
-            conversation_messages = state.values["messages"]
+            if 'messages' not in checkpoint_values:
+                raise Exception(f"No messages in checkpoint. Keys: {list(checkpoint_values.keys())}")
+
+            conversation_messages = checkpoint_values["messages"]
             logger.info(f"✅ Got {len(conversation_messages)} messages from conversation")
 
         # Trim messages to avoid token limits

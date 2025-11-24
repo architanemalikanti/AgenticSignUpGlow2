@@ -544,6 +544,299 @@ DO NOT proceed with any other questions until they provide the code!"""
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)
 
+
+@app.get("/post/stream")
+async def post_stream(
+    q: str = Query(..., description="User message about the post"),
+    user_id: str = Query(..., description="User ID creating the post"),
+    thread_id: str = Query(..., description="Thread ID for conversation memory"),
+    media_urls: Optional[str] = Query(None, description="JSON array of base64 media URLs")
+):
+    """
+    Streaming endpoint for post creation conversations.
+    User talks about what they want to post, and when they confirm,
+    the system generates captions and saves the post.
+
+    Query params:
+    - q: User's message
+    - user_id: ID of the user creating the post
+    - thread_id: Unique ID for this post conversation (for memory)
+    - media_urls: Optional JSON array of base64 encoded images
+    """
+    from post_tools import generate_post_captions, save_post
+
+    async def event_gen():
+        # Build the system prompt
+        post_prompt = f"""You are a friendly assistant helping users create social media posts.
+
+The user will tell you about what they want to post. Have a natural conversation with them about it.
+
+When the user confirms they want to post (e.g., "post it", "yes post this", "let's go", "ready to post"),
+you MUST call the generate_post_captions tool with the full conversation history about their post.
+
+After generating captions, immediately call save_post tool with:
+- user_id: {user_id}
+- title: (from generated captions)
+- caption: (from generated captions)
+- location: (from generated captions, or null)
+- media_urls: {media_urls if media_urls else "null"}
+
+Be casual, friendly, and conversational. Keep responses short (1-2 sentences).
+Use lowercase, gen-z vibe. Help them describe their post in a fun way.
+
+When they're ready to post, call generate_post_captions first, then save_post."""
+
+        messages = [HumanMessage(content=q)]
+        thread = {"configurable": {"thread_id": thread_id}}
+
+        post_initiated = False
+        redis_id = None
+
+        # Tools for post creation
+        post_tools = [generate_post_captions, save_post]
+
+        async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
+            global use_openai_primary
+            primary_model = fallback_model if (use_openai_primary and fallback_model) else model
+
+            try:
+                async_abot = Agent(primary_model, post_tools, system=post_prompt, checkpointer=async_memory, fallback_model=fallback_model)
+                async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
+                    # Check if post was saved
+                    if ev["event"] == "on_tool_end":
+                        tool_name = ev.get("name", "")
+                        tool_output = ev.get("data", {}).get("output", "")
+
+                        if tool_name == "save_post":
+                            try:
+                                result = json.loads(tool_output)
+                                if result.get("success"):
+                                    post_initiated = True
+                                    redis_id = result.get("redis_id")
+                                    logger.info(f"✅ Post creation initiated with redis_id: {redis_id}")
+                            except:
+                                pass
+
+                    # Stream LLM tokens
+                    if ev["event"] == "on_chat_model_stream":
+                        content = ev["data"]["chunk"].content
+                        if content:
+                            yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+
+            except Exception as e:
+                error_str = str(e)
+                is_overload = "overloaded_error" in error_str or "Overloaded" in error_str or "529" in error_str
+
+                if is_overload and fallback_model and not use_openai_primary:
+                    logger.info(f"⚠️ Anthropic overloaded! Switching to OpenAI...")
+                    use_openai_primary = True
+                    async_abot = Agent(fallback_model, post_tools, system=post_prompt, checkpointer=async_memory, fallback_model=None)
+                    async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
+                        if ev["event"] == "on_tool_end":
+                            tool_name = ev.get("name", "")
+                            tool_output = ev.get("data", {}).get("output", "")
+
+                            if tool_name == "save_post":
+                                try:
+                                    result = json.loads(tool_output)
+                                    if result.get("success"):
+                                        post_initiated = True
+                                        redis_id = result.get("redis_id")
+                                        logger.info(f"✅ Post creation initiated with redis_id: {redis_id}")
+                                except:
+                                    pass
+
+                        if ev["event"] == "on_chat_model_stream":
+                            content = ev["data"]["chunk"].content
+                            if content:
+                                yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+                else:
+                    raise
+
+        # If post was initiated, send redis_id for polling
+        if post_initiated and redis_id:
+            logger.info(f"✅ Sending post_initiated event with redis_id: {redis_id}")
+            yield f"event: post_initiated\ndata: {json.dumps({{'user_id': user_id, 'redis_id': redis_id}})}\n\n"
+
+        yield "event: done\ndata: {}\n\n"
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)
+
+
+@app.get("/feed/{user_id}")
+async def get_user_feed(user_id: str, limit: int = 20, offset: int = 0):
+    """
+    Get posts for a user's feed.
+    Returns posts from users they follow, ordered by creation time (newest first).
+
+    Query params:
+    - user_id: ID of the user viewing the feed
+    - limit: Number of posts to return (default 20)
+    - offset: Offset for pagination (default 0)
+    """
+    from database.models import Post, PostMedia
+    from sqlalchemy import desc
+
+    try:
+        db = SessionLocal()
+
+        # Get list of users this user follows
+        following = db.query(Follow.following_id).filter(Follow.follower_id == user_id).all()
+        following_ids = [f[0] for f in following]
+
+        if not following_ids:
+            # If not following anyone, return empty feed
+            return {
+                "status": "success",
+                "posts": [],
+                "total": 0
+            }
+
+        # Get posts from followed users
+        posts_query = db.query(Post).filter(
+            Post.user_id.in_(following_ids)
+        ).order_by(desc(Post.created_at)).limit(limit).offset(offset)
+
+        posts = posts_query.all()
+
+        # Build response with post data and media
+        feed_posts = []
+        for post in posts:
+            # Get user info
+            user = db.query(User).filter(User.id == post.user_id).first()
+
+            # Get media for this post
+            media = db.query(PostMedia).filter(PostMedia.post_id == post.id).all()
+            media_urls = [m.media_url for m in media]
+
+            feed_posts.append({
+                "post_id": post.id,
+                "user_id": post.user_id,
+                "username": user.username if user else "unknown",
+                "name": user.name if user else "Unknown",
+                "title": post.title,
+                "caption": post.caption,
+                "location": post.location,
+                "media_urls": media_urls,
+                "created_at": post.created_at.isoformat() if post.created_at else None
+            })
+
+        db.close()
+
+        logger.info(f"✅ Retrieved {len(feed_posts)} posts for user {user_id}'s feed")
+
+        return {
+            "status": "success",
+            "posts": feed_posts,
+            "total": len(feed_posts)
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error getting feed: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.get("/posts/user/{user_id}")
+async def get_user_posts(user_id: str, limit: int = 20, offset: int = 0):
+    """
+    Get all posts by a specific user.
+
+    Query params:
+    - user_id: ID of the user whose posts to retrieve
+    - limit: Number of posts to return (default 20)
+    - offset: Offset for pagination (default 0)
+    """
+    from database.models import Post, PostMedia
+    from sqlalchemy import desc
+
+    try:
+        db = SessionLocal()
+
+        # Get posts by this user
+        posts_query = db.query(Post).filter(
+            Post.user_id == user_id
+        ).order_by(desc(Post.created_at)).limit(limit).offset(offset)
+
+        posts = posts_query.all()
+
+        # Get user info
+        user = db.query(User).filter(User.id == user_id).first()
+
+        # Build response with post data and media
+        user_posts = []
+        for post in posts:
+            # Get media for this post
+            media = db.query(PostMedia).filter(PostMedia.post_id == post.id).all()
+            media_urls = [m.media_url for m in media]
+
+            user_posts.append({
+                "post_id": post.id,
+                "user_id": post.user_id,
+                "username": user.username if user else "unknown",
+                "name": user.name if user else "Unknown",
+                "title": post.title,
+                "caption": post.caption,
+                "location": post.location,
+                "media_urls": media_urls,
+                "created_at": post.created_at.isoformat() if post.created_at else None
+            })
+
+        db.close()
+
+        logger.info(f"✅ Retrieved {len(user_posts)} posts for user {user_id}")
+
+        return {
+            "status": "success",
+            "posts": user_posts,
+            "total": len(user_posts)
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error getting user posts: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.get("/post/status/{redis_id}")
+async def poll_post_status(redis_id: str):
+    """
+    Poll endpoint for iOS to check post creation status.
+
+    Returns:
+    - status: "processing" | "saving" | "notifying" | "posted" | "error"
+    - message: Human readable status message
+    - post_id: Available when status = "posted"
+    """
+    try:
+        status_key = f"post_status:{redis_id}"
+        status_data_str = r.get(status_key)
+
+        if not status_data_str:
+            return {
+                "status": "not_found",
+                "message": "Post status not found or expired"
+            }
+
+        status_data = json.loads(status_data_str)
+
+        logger.info(f"📊 Post status poll: {status_data}")
+
+        return status_data
+
+    except Exception as e:
+        logger.error(f"Error polling post status: {str(e)}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
 @app.get("/poll/{session_id}")
 async def poll_user_id(session_id: str):
     """
@@ -2591,110 +2884,6 @@ async def poll_caption_data(session_id: str):
     except Exception as e:
         logger.error(f"Error polling caption data: {e}")
         return {"status": "error", "error": str(e)}
-
-
-class GenerateCaptionRequest(BaseModel):
-    descriptions: List[str]
-
-
-@app.post("/generate/caption")
-async def generate_caption(request: GenerateCaptionRequest):
-    """
-    Generate an iconic title, caption, and location from user descriptions.
-
-    Input:
-    {
-        "descriptions": ["went to the beach today", "sunset was beautiful"]
-    }
-
-    Output:
-    {
-        "title": "Golden Hour Bliss",
-        "caption": "chasing sunsets and making memories 🌅✨",
-        "location": "beach"
-    }
-    """
-    try:
-        from anthropic import Anthropic
-
-        # Join descriptions into a single context
-        descriptions_text = "\n".join([f"- {desc}" for desc in request.descriptions])
-
-        # Create prompt for Claude
-        prompt = f"""Based on these user descriptions, generate an iconic social media post:
-
-Descriptions:
-{descriptions_text}
-
-Generate a JSON response with:
-1. "title": A short, catchy, iconic title (2-4 words, capitalize each word)
-2. "caption": A fun, casual caption in lowercase gen-z style (15-25 words, can use emojis)
-3. "location": Extract or infer the location mentioned (single word or short phrase, lowercase)
-
-If no specific location is mentioned, infer it from context (e.g., "beach", "city", "home", "cafe").
-
-Requirements:
-- Title should be memorable and aesthetic
-- Caption should feel authentic and casual
-- Location should be concise
-- Return ONLY valid JSON, no other text
-
-Example output format:
-{{
-  "title": "Summer Nights",
-  "caption": "living for these warm evenings with good vibes and even better company 🌙✨",
-  "location": "rooftop"
-}}"""
-
-        # Call Anthropic API
-        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}]
-        )
-
-        # Extract response text
-        response_text = response.content[0].text.strip()
-
-        # Parse JSON from response
-        try:
-            # Remove markdown code blocks if present
-            if response_text.startswith("```"):
-                response_text = response_text.split("```")[1]
-                if response_text.startswith("json"):
-                    response_text = response_text[4:]
-
-            result = json.loads(response_text.strip())
-
-            # Validate required fields
-            if not all(key in result for key in ["title", "caption", "location"]):
-                raise ValueError("Missing required fields in generated response")
-
-            logger.info(f"✅ Generated caption: {result}")
-
-            return {
-                "status": "success",
-                "title": result["title"],
-                "caption": result["caption"],
-                "location": result["location"]
-            }
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON from Claude: {response_text}")
-            return {
-                "status": "error",
-                "error": "Failed to parse AI response",
-                "raw_response": response_text
-            }
-
-    except Exception as e:
-        logger.error(f"Error generating caption: {e}")
-        return {
-            "status": "error",
-            "error": str(e)
-        }
 
 
 if __name__ == "__main__":

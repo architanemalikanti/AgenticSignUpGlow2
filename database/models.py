@@ -36,6 +36,9 @@ class User(Base):
     # One-to-many relationship with Design table
     designs = relationship("Design", back_populates="user")
 
+    # One-to-many relationship with Post table
+    posts = relationship("Post", back_populates="user")
+
 
 class Design(Base):
     __tablename__ = 'designs'
@@ -103,4 +106,46 @@ class Era(Base):
 
     # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Post(Base):
+    __tablename__ = 'posts'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign key to users table (one-to-many: one user can have many posts)
+    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
+
+    # Post content fields
+    title = Column(String, nullable=True)  # Post title
+    location = Column(String, nullable=True)  # Location
+    caption = Column(String, nullable=True)  # Caption text
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="posts")
+    media = relationship("PostMedia", back_populates="post", cascade="all, delete-orphan")
+
+
+class PostMedia(Base):
+    __tablename__ = 'post_media'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign key to posts table (one-to-many: one post can have many media items)
+    post_id = Column(String(36), ForeignKey('posts.id'), nullable=False)
+
+    # Media URL (base64 encoded image)
+    media_url = Column(String, nullable=False)
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship back to Post
+    post = relationship("Post", back_populates="media")
 

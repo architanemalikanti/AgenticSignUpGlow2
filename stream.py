@@ -553,22 +553,23 @@ class PostStreamRequest(BaseModel):
 
 
 @app.post("/post/stream")
-async def post_stream(request: PostStreamRequest):
+async def post_stream(
+    q: str = Query(..., description="User's message"),
+    user_id: str = Query(..., description="ID of the user creating the post"),
+    thread_id: str = Query(..., description="Unique ID for this post conversation"),
+    media_urls: Optional[str] = Query(None, description="JSON string of media URLs")
+):
     """
     Streaming endpoint for post creation conversations.
     User talks about what they want to post, and when they confirm,
     the system generates captions and saves the post.
 
-    Request body:
+    Query params:
     - q: User's message
     - user_id: ID of the user creating the post
     - thread_id: Unique ID for this post conversation (for memory)
-    - media_urls: Optional list of base64 encoded images
+    - media_urls: Optional JSON string of base64 encoded images
     """
-    q = request.q
-    user_id = request.user_id
-    thread_id = request.thread_id
-    media_urls = json.dumps(request.media_urls) if request.media_urls else None
 
     async def event_gen():
         # Build the system prompt

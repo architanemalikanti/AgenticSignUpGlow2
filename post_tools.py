@@ -131,10 +131,36 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
 2. A caption (1-2 sentences, casual gen-z vibe)
 3. A location (if mentioned, otherwise null)
 
-Return as JSON: {"title": "...", "caption": "...", "location": "..." or null}"""
+Return ONLY valid JSON with no other text: {"title": "...", "caption": "...", "location": "..." or null}"""
 
         result = caption_model.invoke([{"role": "user", "content": f"{prompt}\n\nConversation:\n{trimmed_messages}"}])
-        captions = json.loads(result.content)
+
+        # Extract JSON from response (in case AI adds extra text)
+        content = result.content
+        logger.info(f"🔍 AI response: {content}")
+
+        # Try to find JSON in the response
+        try:
+            # If content is a list (tool use), get text
+            if isinstance(content, list):
+                content = content[0].get("text", "") if content else ""
+
+            # Find JSON block
+            if "{" in content:
+                start = content.find("{")
+                end = content.rfind("}") + 1
+                json_str = content[start:end]
+                captions = json.loads(json_str)
+            else:
+                raise ValueError("No JSON found in response")
+        except Exception as e:
+            logger.error(f"❌ Failed to parse captions: {e}, Content: {content}")
+            # Fallback to simple caption
+            captions = {
+                "title": "New Post",
+                "caption": "Check out my latest post!",
+                "location": None
+            }
 
         logger.info(f"✅ Generated captions: {captions}")
 

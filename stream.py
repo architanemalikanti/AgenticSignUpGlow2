@@ -600,8 +600,10 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                     if ev["event"] == "on_chat_model_stream":
                         content = ev["data"]["chunk"].content
                         if content:
-                            full_response += content
-                            yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+                            # Handle both string and list content
+                            content_str = content if isinstance(content, str) else ""
+                            full_response += content_str
+                            yield f"event: token\ndata: {json.dumps({'content': content_str})}\n\n"
 
                             # Check if AI is confirming post
                             if "posting now" in full_response.lower() and not post_initiated:
@@ -634,8 +636,10 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                         if ev["event"] == "on_chat_model_stream":
                             content = ev["data"]["chunk"].content
                             if content:
-                                full_response += content
-                                yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+                                # Handle both string and list content
+                                content_str = content if isinstance(content, str) else ""
+                                full_response += content_str
+                                yield f"event: token\ndata: {json.dumps({'content': content_str})}\n\n"
 
                                 # Check if AI is confirming post
                                 if "posting now" in full_response.lower() and not post_initiated:

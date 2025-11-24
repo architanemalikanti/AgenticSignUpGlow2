@@ -86,17 +86,20 @@ Example output format:
         return json.dumps({"error": str(e)})
 
 
-async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: str, media_urls: str, checkpointer):
+async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: str, media_urls: str, db_path: str):
     """
     Background task to generate captions from conversation, create post, and notify followers.
     """
     try:
         # Get conversation history
         from langchain_core.messages import trim_messages
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
         thread = {"configurable": {"thread_id": thread_id}}
 
-        # Get state from checkpointer
-        state = await checkpointer.aget(thread)
+        # Open checkpointer to get conversation history
+        async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
+            # Get state from checkpointer
+            state = await checkpointer.aget(thread)
         if not state or "messages" not in state.values:
             raise Exception("No conversation history found")
 

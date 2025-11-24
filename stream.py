@@ -641,7 +641,7 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                                 # Start background task
                                 from post_tools import create_post_from_conversation
                                 asyncio.create_task(
-                                    create_post_from_conversation(redis_id, user_id, thread_id, media_urls, async_memory)
+                                    create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
                                 )
 
             except Exception as e:
@@ -694,7 +694,7 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                                     # Start background task
                                     from post_tools import create_post_from_conversation
                                     asyncio.create_task(
-                                        create_post_from_conversation(redis_id, user_id, thread_id, media_urls, async_memory)
+                                        create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
                                     )
                 else:
                     raise

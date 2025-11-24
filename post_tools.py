@@ -106,20 +106,15 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
             if not state:
                 raise Exception("No conversation history found - state is None")
 
-            # Access state values correctly
-            if hasattr(state, 'values'):
-                state_values = state.values
-                logger.info(f"🔍 State values type: {type(state_values)}")
+            # Access state values correctly - state.values is a dict, not a method
+            if not state.values:
+                raise Exception("No state values found")
 
-                if not isinstance(state_values, dict):
-                    raise Exception(f"State values is not a dict, it's: {type(state_values)}")
+            if 'messages' not in state.values:
+                raise Exception(f"No messages in state. Keys: {state.values.keys()}")
 
-                if 'messages' not in state_values:
-                    raise Exception(f"No messages in state. Keys: {state_values.keys()}")
-
-                conversation_messages = state_values["messages"]
-            else:
-                raise Exception("State has no values attribute")
+            conversation_messages = state.values["messages"]
+            logger.info(f"✅ Got {len(conversation_messages)} messages from conversation")
 
         # Trim messages to avoid token limits
         trimmed_messages = trim_messages(

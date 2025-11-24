@@ -603,7 +603,16 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                             # Handle both string and list content
                             content_str = content if isinstance(content, str) else ""
                             full_response += content_str
-                            yield f"event: token\ndata: {json.dumps({'content': content_str})}\n\n"
+
+                            # Format content for iOS (Anthropic format)
+                            content_block = {
+                                "content": [{
+                                    "text": content_str,
+                                    "type": "text",
+                                    "index": 0
+                                }]
+                            }
+                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                             # Check if AI is confirming post
                             if "posting now" in full_response.lower() and not post_initiated:
@@ -639,7 +648,16 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                                 # Handle both string and list content
                                 content_str = content if isinstance(content, str) else ""
                                 full_response += content_str
-                                yield f"event: token\ndata: {json.dumps({'content': content_str})}\n\n"
+
+                                # Format content for iOS (Anthropic format)
+                                content_block = {
+                                    "content": [{
+                                        "text": content_str,
+                                        "type": "text",
+                                        "index": 0
+                                    }]
+                                }
+                                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                                 # Check if AI is confirming post
                                 if "posting now" in full_response.lower() and not post_initiated:

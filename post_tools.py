@@ -124,7 +124,7 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
         # Generate captions from conversation
         from langchain_anthropic import ChatAnthropic
         import os
-        caption_model = ChatAnthropic(model="claude-3-5-sonnet-20241022", api_key=os.getenv("ANTHROPIC_API_KEY"))
+        caption_model = ChatAnthropic(model="claude-sonnet-4-5-20250929", api_key=os.getenv("ANTHROPIC_API_KEY"))
 
         prompt = """Based on this conversation about a social media post, generate:
 1. A short title (3-5 words)

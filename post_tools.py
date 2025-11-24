@@ -116,12 +116,10 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
             conversation_messages = channel_values["messages"]
             logger.info(f"✅ Got {len(conversation_messages)} messages from conversation")
 
-        # Trim messages to avoid token limits
-        trimmed_messages = trim_messages(
-            conversation_messages,
-            max_tokens=150000,
-            strategy="last"
-        )
+        # Don't trim - just use all messages (or limit to last N if needed)
+        # trim_messages requires token_counter which is complex to set up
+        # For now, just use the last 10 messages to avoid token issues
+        trimmed_messages = conversation_messages[-10:] if len(conversation_messages) > 10 else conversation_messages
 
         # Generate captions from conversation
         from langchain_anthropic import ChatAnthropic

@@ -545,24 +545,30 @@ DO NOT proceed with any other questions until they provide the code!"""
     return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)
 
 
-@app.get("/post/stream")
-async def post_stream(
-    q: str = Query(..., description="User message about the post"),
-    user_id: str = Query(..., description="User ID creating the post"),
-    thread_id: str = Query(..., description="Thread ID for conversation memory"),
-    media_urls: Optional[str] = Query(None, description="JSON array of base64 media URLs")
-):
+class PostStreamRequest(BaseModel):
+    q: str
+    user_id: str
+    thread_id: str
+    media_urls: Optional[List[str]] = None
+
+
+@app.post("/post/stream")
+async def post_stream(request: PostStreamRequest):
     """
     Streaming endpoint for post creation conversations.
     User talks about what they want to post, and when they confirm,
     the system generates captions and saves the post.
 
-    Query params:
+    Request body:
     - q: User's message
     - user_id: ID of the user creating the post
     - thread_id: Unique ID for this post conversation (for memory)
-    - media_urls: Optional JSON array of base64 encoded images
+    - media_urls: Optional list of base64 encoded images
     """
+    q = request.q
+    user_id = request.user_id
+    thread_id = request.thread_id
+    media_urls = json.dumps(request.media_urls) if request.media_urls else None
     from post_tools import generate_post_captions, save_post
 
     async def event_gen():

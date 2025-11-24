@@ -212,7 +212,12 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
         # Add media if provided
         if media_urls:
             try:
-                urls_list = json.loads(media_urls) if isinstance(media_urls, str) else media_urls
+                # Clean the media_urls string (remove newlines and extra spaces)
+                if isinstance(media_urls, str):
+                    media_urls_cleaned = media_urls.replace('\n', '').replace('\r', '').strip()
+                    urls_list = json.loads(media_urls_cleaned)
+                else:
+                    urls_list = media_urls
 
                 for media_url in urls_list:
                     post_media = PostMedia(

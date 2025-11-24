@@ -86,17 +86,71 @@ Example output format:
         return json.dumps({"error": str(e)})
 
 
+async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: str, media_urls: str, checkpointer):
+    """
+    Background task to generate captions from conversation, create post, and notify followers.
+    """
+    try:
+        # Get conversation history
+        from langchain_core.messages import trim_messages
+        thread = {"configurable": {"thread_id": thread_id}}
+
+        # Get state from checkpointer
+        state = await checkpointer.aget(thread)
+        if not state or "messages" not in state.values:
+            raise Exception("No conversation history found")
+
+        conversation_messages = state.values["messages"]
+
+        # Trim messages to avoid token limits
+        trimmed_messages = trim_messages(
+            conversation_messages,
+            max_tokens=150000,
+            strategy="last"
+        )
+
+        # Generate captions from conversation
+        from langchain_anthropic import ChatAnthropic
+        import os
+        caption_model = ChatAnthropic(model="claude-3-5-sonnet-20241022", api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+        prompt = """Based on this conversation about a social media post, generate:
+1. A short title (3-5 words)
+2. A caption (1-2 sentences, casual gen-z vibe)
+3. A location (if mentioned, otherwise null)
+
+Return as JSON: {"title": "...", "caption": "...", "location": "..." or null}"""
+
+        result = caption_model.invoke([{"role": "user", "content": f"{prompt}\n\nConversation:\n{trimmed_messages}"}])
+        captions = json.loads(result.content)
+
+        logger.info(f"✅ Generated captions: {captions}")
+
+        # Now create the post
+        await create_post_in_background(
+            redis_id, user_id,
+            captions.get("title", ""),
+            captions.get("caption", ""),
+            captions.get("location"),
+            media_urls
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Error in create_post_from_conversation: {e}")
+        r.set(f"post_status:{redis_id}", json.dumps({
+            "status": "error",
+            "message": str(e)
+        }), ex=300)
+
+
 async def create_post_in_background(redis_id: str, user_id: str, title: str, caption: str, location: str, media_urls: str):
     """
     Background task to create post, save media, and notify followers.
     Updates Redis with status as it progresses.
     """
     try:
-        # Update status: Saving post
-        r.set(f"post_status:{redis_id}", json.dumps({
-            "status": "saving",
-            "message": "creating your post..."
-        }), ex=300)  # 5 min expiry
+        # Keep status as processing while we work
+        # (No need to update repeatedly)
 
         db = SessionLocal()
 
@@ -136,12 +190,8 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
             except Exception as media_error:
                 logger.error(f"⚠️ Error adding media: {media_error}")
 
-        # Update status: Notifying followers
-        r.set(f"post_status:{redis_id}", json.dumps({
-            "status": "notifying",
-            "message": "notifying followers...",
-            "post_id": post_id
-        }), ex=300)
+        # Still processing (notifying followers)
+        # Will update to "posted" when completely done
 
         # Notify followers about the new post
         try:

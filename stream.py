@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-import os, asyncio, json, logging
+import os, asyncio, json, logging, uuid
 from pathlib import Path
 from langchain_core.messages import HumanMessage
 from langchain_anthropic import ChatAnthropic
@@ -569,7 +569,6 @@ async def post_stream(request: PostStreamRequest):
     user_id = request.user_id
     thread_id = request.thread_id
     media_urls = json.dumps(request.media_urls) if request.media_urls else None
-    from post_tools import generate_post_captions, save_post
 
     async def event_gen():
         # Build the system prompt
@@ -578,56 +577,50 @@ async def post_stream(request: PostStreamRequest):
 The user will tell you about what they want to post. Have a natural conversation with them about it.
 
 When the user confirms they want to post (e.g., "post it", "yes post this", "let's go", "ready to post"),
-you MUST call the generate_post_captions tool with the full conversation history about their post.
-
-After generating captions, immediately call save_post tool with:
-- user_id: {user_id}
-- title: (from generated captions)
-- caption: (from generated captions)
-- location: (from generated captions, or null)
-- media_urls: {media_urls if media_urls else "null"}
+respond with EXACTLY: "posting now!"
 
 Be casual, friendly, and conversational. Keep responses short (1-2 sentences).
-Use lowercase, gen-z vibe. Help them describe their post in a fun way.
-
-When they're ready to post, call generate_post_captions first, then save_post."""
+Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
 
         messages = [HumanMessage(content=q)]
         thread = {"configurable": {"thread_id": thread_id}}
 
         post_initiated = False
         redis_id = None
-
-        # Tools for post creation
-        post_tools = [generate_post_captions, save_post]
+        full_response = ""
 
         async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
             global use_openai_primary
             primary_model = fallback_model if (use_openai_primary and fallback_model) else model
 
             try:
-                async_abot = Agent(primary_model, post_tools, system=post_prompt, checkpointer=async_memory, fallback_model=fallback_model)
+                async_abot = Agent(primary_model, [], system=post_prompt, checkpointer=async_memory, fallback_model=fallback_model)
                 async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
-                    # Check if post was saved
-                    if ev["event"] == "on_tool_end":
-                        tool_name = ev.get("name", "")
-                        tool_output = ev.get("data", {}).get("output", "")
-
-                        if tool_name == "save_post":
-                            try:
-                                result = json.loads(tool_output)
-                                if result.get("success"):
-                                    post_initiated = True
-                                    redis_id = result.get("redis_id")
-                                    logger.info(f"✅ Post creation initiated with redis_id: {redis_id}")
-                            except:
-                                pass
-
                     # Stream LLM tokens
                     if ev["event"] == "on_chat_model_stream":
                         content = ev["data"]["chunk"].content
                         if content:
+                            full_response += content
                             yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+
+                            # Check if AI is confirming post
+                            if "posting now" in full_response.lower() and not post_initiated:
+                                post_initiated = True
+                                redis_id = str(uuid.uuid4())
+
+                                # Set initial Redis status
+                                r.set(f"post_status:{redis_id}", json.dumps({
+                                    "status": "processing",
+                                    "message": "starting post creation..."
+                                }), ex=300)
+
+                                logger.info(f"✅ Post confirmation detected! Created redis_id: {redis_id}")
+
+                                # Start background task
+                                from post_tools import create_post_from_conversation
+                                asyncio.create_task(
+                                    create_post_from_conversation(redis_id, user_id, thread_id, media_urls, async_memory)
+                                )
 
             except Exception as e:
                 error_str = str(e)
@@ -636,35 +629,41 @@ When they're ready to post, call generate_post_captions first, then save_post.""
                 if is_overload and fallback_model and not use_openai_primary:
                     logger.info(f"⚠️ Anthropic overloaded! Switching to OpenAI...")
                     use_openai_primary = True
-                    async_abot = Agent(fallback_model, post_tools, system=post_prompt, checkpointer=async_memory, fallback_model=None)
+                    async_abot = Agent(fallback_model, [], system=post_prompt, checkpointer=async_memory, fallback_model=None)
                     async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
-                        if ev["event"] == "on_tool_end":
-                            tool_name = ev.get("name", "")
-                            tool_output = ev.get("data", {}).get("output", "")
-
-                            if tool_name == "save_post":
-                                try:
-                                    result = json.loads(tool_output)
-                                    if result.get("success"):
-                                        post_initiated = True
-                                        redis_id = result.get("redis_id")
-                                        logger.info(f"✅ Post creation initiated with redis_id: {redis_id}")
-                                except:
-                                    pass
-
                         if ev["event"] == "on_chat_model_stream":
                             content = ev["data"]["chunk"].content
                             if content:
+                                full_response += content
                                 yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+
+                                # Check if AI is confirming post
+                                if "posting now" in full_response.lower() and not post_initiated:
+                                    post_initiated = True
+                                    redis_id = str(uuid.uuid4())
+
+                                    # Set initial Redis status
+                                    r.set(f"post_status:{redis_id}", json.dumps({
+                                        "status": "processing",
+                                        "message": "starting post creation..."
+                                    }), ex=300)
+
+                                    logger.info(f"✅ [FALLBACK] Post confirmation detected! Created redis_id: {redis_id}")
+
+                                    # Start background task
+                                    from post_tools import create_post_from_conversation
+                                    asyncio.create_task(
+                                        create_post_from_conversation(redis_id, user_id, thread_id, media_urls, async_memory)
+                                    )
                 else:
                     raise
 
-        # If post was initiated, send redis_id for polling
+        yield "event: done\ndata: {}\n\n"
+
+        # If post was initiated, send redis_id for polling AFTER done
         if post_initiated and redis_id:
             logger.info(f"✅ Sending post_initiated event with redis_id: {redis_id}")
             yield f"event: post_initiated\ndata: {json.dumps({{'user_id': user_id, 'redis_id': redis_id}})}\n\n"
-
-        yield "event: done\ndata: {}\n\n"
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)

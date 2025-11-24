@@ -100,10 +100,11 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
         async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
             # Get state from checkpointer
             state = await checkpointer.aget(thread)
-        if not state or "messages" not in state.values:
-            raise Exception("No conversation history found")
 
-        conversation_messages = state.values["messages"]
+            if not state or not hasattr(state, 'values') or 'messages' not in state.values:
+                raise Exception("No conversation history found")
+
+            conversation_messages = state.values["messages"]
 
         # Trim messages to avoid token limits
         trimmed_messages = trim_messages(

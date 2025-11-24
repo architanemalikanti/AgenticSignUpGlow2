@@ -572,6 +572,11 @@ async def post_stream(
     """
 
     async def event_gen():
+        # Variables must be outside the async with block to be accessible later
+        post_initiated = False
+        redis_id = None
+        full_response = ""
+
         # Build the system prompt
         post_prompt = f"""You are a friendly assistant helping users create social media posts.
 
@@ -585,10 +590,6 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
 
         messages = [HumanMessage(content=q)]
         thread = {"configurable": {"thread_id": thread_id}}
-
-        post_initiated = False
-        redis_id = None
-        full_response = ""
 
         async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
             global use_openai_primary
@@ -698,12 +699,12 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                 else:
                     raise
 
-        yield "event: done\ndata: {}\n\n"
-
-        # If post was initiated, send redis_id for polling AFTER done
+        # If post was initiated, send redis_id for polling BEFORE done
         if post_initiated and redis_id:
             logger.info(f"✅ Sending post_initiated event with redis_id: {redis_id}")
             yield f"event: post_initiated\ndata: {json.dumps({{'user_id': user_id, 'redis_id': redis_id}})}\n\n"
+
+        yield "event: done\ndata: {}\n\n"
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)

@@ -600,20 +600,29 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                     # Stream LLM tokens
                     if ev["event"] == "on_chat_model_stream":
                         content = ev["data"]["chunk"].content
+                        logger.info(f"🔍 Raw content from AI: {content} (type: {type(content)})")
                         if content:
                             # Handle both string and list content
-                            content_str = content if isinstance(content, str) else ""
-                            full_response += content_str
+                            if isinstance(content, str):
+                                content_str = content
+                            elif isinstance(content, list) and len(content) > 0:
+                                # Extract text from list format [{"text": "...", "type": "text"}]
+                                content_str = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+                            else:
+                                content_str = ""
 
-                            # Format content for iOS (Anthropic format)
-                            content_block = {
-                                "content": [{
-                                    "text": content_str,
-                                    "type": "text",
-                                    "index": 0
-                                }]
-                            }
-                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                            if content_str:  # Only process if we have actual text
+                                full_response += content_str
+
+                                # Format content for iOS (Anthropic format)
+                                content_block = {
+                                    "content": [{
+                                        "text": content_str,
+                                        "type": "text",
+                                        "index": 0
+                                    }]
+                                }
+                                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                             # Check if AI is confirming post
                             if "posting now" in full_response.lower() and not post_initiated:
@@ -647,18 +656,26 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                             content = ev["data"]["chunk"].content
                             if content:
                                 # Handle both string and list content
-                                content_str = content if isinstance(content, str) else ""
-                                full_response += content_str
+                                if isinstance(content, str):
+                                    content_str = content
+                                elif isinstance(content, list) and len(content) > 0:
+                                    # Extract text from list format [{"text": "...", "type": "text"}]
+                                    content_str = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+                                else:
+                                    content_str = ""
 
-                                # Format content for iOS (Anthropic format)
-                                content_block = {
-                                    "content": [{
-                                        "text": content_str,
-                                        "type": "text",
-                                        "index": 0
-                                    }]
-                                }
-                                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                                if content_str:  # Only process if we have actual text
+                                    full_response += content_str
+
+                                    # Format content for iOS (Anthropic format)
+                                    content_block = {
+                                        "content": [{
+                                            "text": content_str,
+                                            "type": "text",
+                                            "index": 0
+                                        }]
+                                    }
+                                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                                 # Check if AI is confirming post
                                 if "posting now" in full_response.lower() and not post_initiated:

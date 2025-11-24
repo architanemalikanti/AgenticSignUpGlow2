@@ -104,11 +104,16 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
             if not state:
                 raise Exception("No conversation history found - state is None")
 
-            # State IS a dict, access it directly
-            if 'messages' not in state:
-                raise Exception(f"No messages in state. Keys: {list(state.keys())}")
+            # State contains channel_values which has the messages
+            if 'channel_values' not in state:
+                raise Exception(f"No channel_values in state. Keys: {list(state.keys())}")
 
-            conversation_messages = state["messages"]
+            channel_values = state['channel_values']
+
+            if 'messages' not in channel_values:
+                raise Exception(f"No messages in channel_values. Keys: {list(channel_values.keys())}")
+
+            conversation_messages = channel_values["messages"]
             logger.info(f"✅ Got {len(conversation_messages)} messages from conversation")
 
         # Trim messages to avoid token limits

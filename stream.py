@@ -816,13 +816,8 @@ async def get_user_posts(user_id: str, limit: int = 20, offset: int = 0):
 
             user_posts.append({
                 "post_id": post.id,
-                "user_id": post.user_id,
-                "username": user.username if user else "unknown",
-                "name": user.name if user else "Unknown",
-                "title": post.title,
                 "caption": post.caption,
-                "location": post.location,
-                "media_urls": media_urls,
+                "post_media": media_urls,  # Array of 1-10 image URLs
                 "created_at": post.created_at.isoformat() if post.created_at else None
             })
 
@@ -832,8 +827,10 @@ async def get_user_posts(user_id: str, limit: int = 20, offset: int = 0):
 
         return {
             "status": "success",
-            "posts": user_posts,
-            "total": len(user_posts)
+            "user_id": user_id,
+            "username": user.username if user else "unknown",
+            "name": user.name if user else "Unknown",
+            "posts": user_posts
         }
 
     except Exception as e:

@@ -142,6 +142,7 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
 2. A caption (1-2 sentences, casual gen-z vibe): keep all lowercase letters, third person.
 3. A location (if mentioned, otherwise null): keep all lowercase letters, and use acronyms if possible (nyc, sf, la, etc).
 Make it sound mysterious and iconic.
+The whole goal is to not share or double check what you're gonna post with the user, so that a mysterious vibe is kept.
 
 Return ONLY valid JSON with no other text: {{"title": "...", "caption": "...", "location": "..." or null}}"""
 

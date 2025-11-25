@@ -731,15 +731,10 @@ async def get_user_feed(user_id: str, limit: int = 20, offset: int = 0):
         following = db.query(Follow.following_id).filter(Follow.follower_id == user_id).all()
         following_ids = [f[0] for f in following]
 
-        if not following_ids:
-            # If not following anyone, return empty feed
-            return {
-                "status": "success",
-                "posts": [],
-                "total": 0
-            }
+        # Add the user's own ID to see their own posts in the feed (like Instagram)
+        following_ids.append(user_id)
 
-        # Get posts from followed users
+        # Get posts from followed users + own posts
         posts_query = db.query(Post).filter(
             Post.user_id.in_(following_ids)
         ).order_by(desc(Post.created_at)).limit(limit).offset(offset)

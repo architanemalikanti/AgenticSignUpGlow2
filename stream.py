@@ -572,24 +572,24 @@ async def post_stream(
     """
 
     async def event_gen():
-        # Variables must be outside the async with block to be accessible later
-        post_initiated = False
-        redis_id = None
-        full_response = ""
-
         # Build the system prompt
         post_prompt = f"""You are a friendly assistant helping users create social media posts.
+Normally when you post on Instagram, the user clicks a button to post. But in the case of Glow, the user 
+will upload their images and give a short description of what they wanna post. 
 
-The user will tell you about what they want to post. Have a natural conversation with them about it.
-
+Your main goal after they put a message of their images and short description is to get them to confirm they want to post it. 
+"are we ready to post now?": keep confirming this after every message until they say yes. 
 When the user confirms they want to post (e.g., "post it", "yes post this", "let's go", "ready to post"),
 respond with EXACTLY: "posting now!"
 
-Be casual, friendly, and conversational. Keep responses short (1-2 sentences).
-Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
+Use lowercase, gen-z vibe."""
 
         messages = [HumanMessage(content=q)]
         thread = {"configurable": {"thread_id": thread_id}}
+
+        post_initiated = False
+        redis_id = None
+        full_response = ""
 
         async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
             global use_openai_primary
@@ -641,7 +641,7 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                                 # Start background task
                                 from post_tools import create_post_from_conversation
                                 asyncio.create_task(
-                                    create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
+                                    create_post_from_conversation(redis_id, user_id, thread_id, media_urls, async_memory)
                                 )
 
             except Exception as e:
@@ -694,7 +694,7 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
                                     # Start background task
                                     from post_tools import create_post_from_conversation
                                     asyncio.create_task(
-                                        create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
+                                        create_post_from_conversation(redis_id, user_id, thread_id, media_urls, async_memory)
                                     )
                 else:
                     raise
@@ -704,7 +704,7 @@ Use lowercase, gen-z vibe. Help them describe their post in a fun way."""
         # If post was initiated, send redis_id for polling AFTER done
         if post_initiated and redis_id:
             logger.info(f"✅ Sending post_initiated event with redis_id: {redis_id}")
-            yield f"event: post_initiated\ndata: {json.dumps({'user_id': user_id, 'redis_id': redis_id})}\n\n"
+            yield f"event: post_initiated\ndata: {json.dumps({{'user_id': user_id, 'redis_id': redis_id}})}\n\n"
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)
@@ -731,10 +731,15 @@ async def get_user_feed(user_id: str, limit: int = 20, offset: int = 0):
         following = db.query(Follow.following_id).filter(Follow.follower_id == user_id).all()
         following_ids = [f[0] for f in following]
 
-        # Add the user's own ID to see their own posts in the feed (like Instagram)
-        following_ids.append(user_id)
+        if not following_ids:
+            # If not following anyone, return empty feed
+            return {
+                "status": "success",
+                "posts": [],
+                "total": 0
+            }
 
-        # Get posts from followed users + own posts
+        # Get posts from followed users
         posts_query = db.query(Post).filter(
             Post.user_id.in_(following_ids)
         ).order_by(desc(Post.created_at)).limit(limit).offset(offset)
@@ -2739,7 +2744,8 @@ async def caption_generation_stream(q: str = Query(""), session_id: str = Query(
     - session_id: unique session identifier (required)
 
     The AI will chat with the user to understand what they want to post,
-    then generate 2 captions and a location. When ready, sends conversation_complete event.
+    then generate 2 captions and a
+     location. When ready, sends conversation_complete event.
     """
     async def event_gen():
         import json

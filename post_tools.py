@@ -91,6 +91,13 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
     Background task to generate captions from conversation, create post, and notify followers.
     """
     try:
+        # Get user info
+        from database.db import SessionLocal
+        db = SessionLocal()
+        user = db.query(User).filter(User.id == user_id).first()
+        user_name = user.name if user else "User"
+        db.close()
+
         # Get conversation history
         from langchain_core.messages import trim_messages
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -126,12 +133,13 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
         import os
         caption_model = ChatAnthropic(model="claude-sonnet-4-5-20250929", api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """Based on this conversation about a social media post, generate:
-1. A short title (3-5 words)
-2. A caption (1-2 sentences, casual gen-z vibe)
-3. A location (if mentioned, otherwise null)
+        prompt = f"""Based on this conversation about a social media post, generate:
+1. A short title (3-5 words): keep all lowercase letters, genz, third person. remember, the user's name is: {user_name}
+2. A caption (1-2 sentences, casual gen-z vibe): keep all lowercase letters, third person.
+3. A location (if mentioned, otherwise null): keep all lowercase letters, and use acronyms if possible (nyc, sf, la, etc).
+Make it sound mysterious and iconic.
 
-Return ONLY valid JSON with no other text: {"title": "...", "caption": "...", "location": "..." or null}"""
+Return ONLY valid JSON with no other text: {{"title": "...", "caption": "...", "location": "..." or null}}"""
 
         result = caption_model.invoke([{"role": "user", "content": f"{prompt}\n\nConversation:\n{trimmed_messages}"}])
 

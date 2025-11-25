@@ -103,13 +103,17 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
         thread = {"configurable": {"thread_id": thread_id}}
 
+        logger.info(f"🔍 Looking for conversation history with thread_id: {thread_id}, db_path: {db_path}")
+
         # Open checkpointer to get conversation history
         async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
             # Get state from checkpointer
             state = await checkpointer.aget(thread)
 
             if not state:
-                raise Exception("No conversation history found - state is None")
+                logger.error(f"❌ No conversation history found for thread_id: {thread_id}")
+                # Instead of raising, use fallback generic captions
+                raise Exception(f"No conversation history found for thread_id: {thread_id}. Make sure the conversation was saved before posting.")
 
             # State contains channel_values which has the messages
             if 'channel_values' not in state:

@@ -641,7 +641,7 @@ Use lowercase, gen-z vibe."""
                                 # Start background task
                                 from post_tools import create_post_from_conversation
                                 asyncio.create_task(
-                                    create_post_from_conversation(redis_id, user_id, thread_id, media_urls, async_memory)
+                                    create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
                                 )
 
             except Exception as e:
@@ -694,7 +694,7 @@ Use lowercase, gen-z vibe."""
                                     # Start background task
                                     from post_tools import create_post_from_conversation
                                     asyncio.create_task(
-                                        create_post_from_conversation(redis_id, user_id, thread_id, media_urls, async_memory)
+                                        create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
                                     )
                 else:
                     raise
@@ -704,7 +704,7 @@ Use lowercase, gen-z vibe."""
         # If post was initiated, send redis_id for polling AFTER done
         if post_initiated and redis_id:
             logger.info(f"✅ Sending post_initiated event with redis_id: {redis_id}")
-            yield f"event: post_initiated\ndata: {json.dumps({{'user_id': user_id, 'redis_id': redis_id}})}\n\n"
+            yield f"event: post_initiated\ndata: {json.dumps({'user_id': user_id, 'redis_id': redis_id})}\n\n"
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)

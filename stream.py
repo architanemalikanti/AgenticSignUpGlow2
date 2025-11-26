@@ -282,7 +282,7 @@ async def simple_onboarding_stream(q: str = Query(""), session_id: str = Query(.
             set_simple_username,
             set_simple_password,
             confirm_simple_password,
-            set_favorite_color,
+            set_ethnicity,
             set_city,
             set_simple_occupation,
             finalize_simple_signup
@@ -407,7 +407,7 @@ Your job is to collect these pieces of information in order (ONLY ask for ❌ mi
 6. Send verification code to email - use generate_verification_code tool (ONLY after password confirmed)
 7. **ASK for the verification code they received in their email** - be explicit! say "check your email for the code"
 8. Verify the code - use test_verification_code tool with the code they provide
-9. Favorite color - use set_favorite_color tool (ONLY after email verified)
+9. Ethnicity - use set_ethnicity tool (ONLY after email verified)
 10. City they live in - use set_city tool
 11. Occupation - use set_simple_occupation tool
 12. Gender - use get_user_gender tool
@@ -459,7 +459,7 @@ DO NOT proceed with any other questions until they provide the code!"""
             confirm_simple_password,
             generate_verification_code,
             test_verification_code,
-            set_favorite_color,
+            set_ethnicity,
             set_city,
             set_simple_occupation,
             get_user_gender,

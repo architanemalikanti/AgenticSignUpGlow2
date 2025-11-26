@@ -206,6 +206,18 @@ def finalize_simple_signup(session_id: str) -> str:
                     bcrypt.gensalt()
                 ).decode('utf-8')
 
+            # Get cartoon avatar ONLY for females
+            gender = signup_data.get('gender', '').lower().strip()
+            profile_image_url = None
+
+            if gender == 'female':
+                from avatar_helper import get_cartoon_avatar
+                ethnicity = signup_data.get('ethnicity', '')
+                profile_image_url = get_cartoon_avatar(gender, ethnicity)
+                logger.info(f"🎨 Selected avatar for female/{ethnicity}: {profile_image_url}")
+            else:
+                logger.info(f"ℹ️  No avatar assigned (gender: {gender})")
+
             # Create user
             user_id = str(uuid.uuid4())
             new_user = User(
@@ -216,8 +228,10 @@ def finalize_simple_signup(session_id: str) -> str:
                 password=hashed_password,
                 occupation=signup_data['occupation'],
                 gender=signup_data['gender'],
+                ethnicity=signup_data.get('ethnicity'),
                 favorite_color=signup_data['favorite_color'],
                 city=signup_data['city'],
+                profile_image=profile_image_url,  # Add cartoon avatar!
                 session_id=session_id,
                 created_at=datetime.utcnow()
             )
@@ -231,10 +245,12 @@ def finalize_simple_signup(session_id: str) -> str:
             access_token = create_access_token(user_id)
             refresh_token = create_refresh_token(user_id)
 
-            # Store user_id and tokens in Redis
+            # Store user_id, tokens, and profile_image (if female) in Redis
             session_data['user_id'] = user_id
             session_data['access_token'] = access_token
             session_data['refresh_token'] = refresh_token
+            if profile_image_url:
+                session_data['profile_image'] = profile_image_url  # Add avatar URL for iOS!
             session_data['signup_data']['favorite_color'] = signup_data['favorite_color']
             session_data['signup_data']['city'] = signup_data['city']
             r.set(redis_key, json.dumps(session_data))

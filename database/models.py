@@ -26,7 +26,6 @@ class User(Base):
     university = Column(String(200), nullable=True)
     college_major = Column(String(200), nullable=True)
     occupation = Column(String(200), nullable=True)
-    favorite_color = Column(String(50), nullable=True)  # User's favorite color
     city = Column(String(200), nullable=True)  # City they live in
     conversations = Column(JSONB, default=list)  # Array of conversation dicts
     prompt = Column(String, nullable=True)  # Store the dynamic prompt state for user

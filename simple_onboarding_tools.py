@@ -1,6 +1,6 @@
 """
 Simple onboarding tools for streamlined signup flow.
-Collects: name, username, password, confirm password, favorite color, city, occupation
+Collects: name, username, password, confirm password, ethnicity, city, occupation, gender
 """
 
 from langchain_core.tools import tool
@@ -100,8 +100,8 @@ def confirm_simple_password(session_id: str, confirm_password: str) -> str:
 
 
 @tool
-def set_favorite_color(session_id: str, color: str) -> str:
-    """Set the user's favorite color in Redis."""
+def set_ethnicity(session_id: str, ethnicity: str) -> str:
+    """Set the user's ethnicity in Redis."""
     try:
         redis_key = f"session:{session_id}"
         session_data_str = r.get(redis_key)
@@ -110,13 +110,13 @@ def set_favorite_color(session_id: str, color: str) -> str:
             return "Session not found"
 
         session_data = json.loads(session_data_str)
-        session_data['signup_data']['favorite_color'] = color
+        session_data['signup_data']['ethnicity'] = ethnicity
         r.set(redis_key, json.dumps(session_data))
 
-        logger.info(f"✅ Set favorite color: {color}")
-        return f"Love {color}! That's a great choice."
+        logger.info(f"✅ Set ethnicity: {ethnicity}")
+        return f"Got it, thanks for sharing!"
     except Exception as e:
-        logger.error(f"Error setting favorite color: {e}")
+        logger.error(f"Error setting ethnicity: {e}")
         return f"Error: {str(e)}"
 
 
@@ -185,7 +185,7 @@ def finalize_simple_signup(session_id: str) -> str:
         signup_data = session_data.get('signup_data', {})
 
         # Validate all required fields
-        required_fields = ['name', 'username', 'email', 'password', 'favorite_color', 'city', 'occupation', 'gender']
+        required_fields = ['name', 'username', 'email', 'password', 'ethnicity', 'city', 'occupation', 'gender']
         missing_fields = [f for f in required_fields if not signup_data.get(f)]
 
         if missing_fields:
@@ -228,8 +228,7 @@ def finalize_simple_signup(session_id: str) -> str:
                 password=hashed_password,
                 occupation=signup_data['occupation'],
                 gender=signup_data['gender'],
-                ethnicity=signup_data.get('ethnicity'),
-                favorite_color=signup_data['favorite_color'],
+                ethnicity=signup_data['ethnicity'],
                 city=signup_data['city'],
                 profile_image=profile_image_url,  # Add cartoon avatar!
                 session_id=session_id,
@@ -251,8 +250,6 @@ def finalize_simple_signup(session_id: str) -> str:
             session_data['refresh_token'] = refresh_token
             if profile_image_url:
                 session_data['profile_image'] = profile_image_url  # Add avatar URL for iOS!
-            session_data['signup_data']['favorite_color'] = signup_data['favorite_color']
-            session_data['signup_data']['city'] = signup_data['city']
             r.set(redis_key, json.dumps(session_data))
 
             logger.info(f"✅ Created user {user_id} with username {signup_data['username']}")

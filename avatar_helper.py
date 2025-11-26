@@ -19,8 +19,8 @@ def get_cartoon_avatar(gender: str, ethnicity: str) -> str:
         S3 URL to the cartoon avatar image for females
     """
     # Get S3 base URL from environment variable
-    # Format: https://your-bucket-name.s3.us-west-2.amazonaws.com/avatars
-    BASE_URL = os.getenv("S3_AVATAR_BASE_URL", "https://stream-app-avatars.s3.us-west-2.amazonaws.com/avatars")
+    # Format: https://your-bucket-name.s3.us-west-2.amazonaws.com
+    BASE_URL = os.getenv("S3_AVATAR_BASE_URL", "https://glow-avatars-bucket.s3.us-west-1.amazonaws.com")
 
     # Normalize ethnicity to lowercase for consistent matching
     ethnicity = ethnicity.lower().strip() if ethnicity else "other"

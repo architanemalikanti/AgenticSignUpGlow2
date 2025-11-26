@@ -6,6 +6,7 @@ Usage: python add_profile_image_column.py
 """
 
 from database.db import engine
+from sqlalchemy import text
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -16,11 +17,11 @@ def add_profile_image_column():
     try:
         with engine.connect() as conn:
             # Check if column already exists
-            result = conn.execute("""
+            result = conn.execute(text("""
                 SELECT column_name
                 FROM information_schema.columns
                 WHERE table_name='users' AND column_name='profile_image';
-            """)
+            """))
 
             if result.fetchone():
                 logger.info("⚠️  Column 'profile_image' already exists in users table. Skipping migration.")
@@ -28,10 +29,10 @@ def add_profile_image_column():
 
             # Add the column
             logger.info("Adding profile_image column to users table...")
-            conn.execute("""
+            conn.execute(text("""
                 ALTER TABLE users
                 ADD COLUMN profile_image VARCHAR(500);
-            """)
+            """))
             conn.commit()
 
             logger.info("✅ Successfully added profile_image column to users table!")

@@ -98,8 +98,14 @@ class Era(Base):
     # Primary key
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
-    # Foreign key - user who posted/owns this notification
+    # Foreign key - user who receives this notification
     user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
+
+    # Foreign key - user who triggered this notification (the actor)
+    # For follow requests: the requester
+    # For follow accepts: the accepter
+    # For eras: null (self-posted)
+    actor_id = Column(String(36), ForeignKey('users.id'), nullable=True)
 
     # Content of the era/notification
     content = Column(String, nullable=False)

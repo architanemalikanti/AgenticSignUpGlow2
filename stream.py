@@ -760,7 +760,12 @@ async def get_user_feed(user_id: str, limit: int = 20, offset: int = 0):
                 "caption": post.caption,
                 "location": post.location,
                 "media_urls": media_urls,
-                "created_at": post.created_at.isoformat() if post.created_at else None
+                "created_at": post.created_at.isoformat() if post.created_at else None,
+                # Actor is the person who created the post
+                "actor_id": post.user_id,
+                "actor_username": user.username if user else "unknown",
+                "actor_name": user.name if user else "Unknown",
+                "actor_profile_image": user.profile_image if user else None
             })
 
         db.close()
@@ -818,7 +823,12 @@ async def get_user_posts(user_id: str, limit: int = 20, offset: int = 0):
                 "post_id": post.id,
                 "caption": post.caption,
                 "post_media": media_urls,  # Array of 1-10 image URLs
-                "created_at": post.created_at.isoformat() if post.created_at else None
+                "created_at": post.created_at.isoformat() if post.created_at else None,
+                # Actor is the person who created the post
+                "actor_id": user_id,
+                "actor_username": user.username if user else "unknown",
+                "actor_name": user.name if user else "Unknown",
+                "actor_profile_image": user.profile_image if user else None
             })
 
         db.close()
@@ -2116,6 +2126,7 @@ async def send_follow_request(request_data: FollowRequestCreate):
         requester_name = requester.name if requester.name else requester.username
         era_notification = Era(
             user_id=request_data.requested_id,  # Notification belongs to User B
+            actor_id=request_data.requester_id,  # The requester is the actor
             content=f"{requester_name} wants to follow you"
         )
         db.add(era_notification)
@@ -2287,6 +2298,7 @@ Return ONLY the text, no quotes."""
         # Create era notification for User A (the requester)
         era_notification = Era(
             user_id=request_data.requester_id,  # Notification belongs to User A
+            actor_id=request_data.requested_id,  # The accepter is the actor
             content=notification_message
         )
         db.add(era_notification)
@@ -2720,7 +2732,8 @@ async def get_feed(user_id: str):
 
             for era in eras_from_followed:
                 poster = db.query(User).filter(User.id == era.user_id).first()
-                feed_items.append({
+
+                era_item = {
                     "type": "era",
                     "id": era.id,
                     "user_id": era.user_id,
@@ -2728,7 +2741,18 @@ async def get_feed(user_id: str):
                     "name": poster.name if poster else "Unknown",
                     "content": era.content,
                     "created_at": era.created_at.isoformat()
-                })
+                }
+
+                # Add actor_id - for eras from followed users, the actor is the poster
+                # Use actor_id from database if it exists, otherwise use user_id (self-posted era)
+                actor_id = era.actor_id if era.actor_id else era.user_id
+                if poster:
+                    era_item["actor_id"] = actor_id
+                    era_item["actor_username"] = poster.username
+                    era_item["actor_name"] = poster.name
+                    era_item["actor_profile_image"] = poster.profile_image
+
+                feed_items.append(era_item)
 
         # 3. Get user's own notifications (follow requests and accepts)
         user_notifications = db.query(Era).filter(
@@ -2744,13 +2768,31 @@ async def get_feed(user_id: str):
             else:
                 notif_type = "notification"
 
-            feed_items.append({
+            # Get actor details if actor_id exists
+            actor_info = None
+            if notif.actor_id:
+                actor = db.query(User).filter(User.id == notif.actor_id).first()
+                if actor:
+                    actor_info = {
+                        "actor_id": actor.id,
+                        "actor_username": actor.username,
+                        "actor_name": actor.name,
+                        "actor_profile_image": actor.profile_image
+                    }
+
+            notification_item = {
                 "type": notif_type,
                 "id": notif.id,
                 "user_id": notif.user_id,
                 "content": notif.content,
                 "created_at": notif.created_at.isoformat()
-            })
+            }
+
+            # Add actor info if available
+            if actor_info:
+                notification_item.update(actor_info)
+
+            feed_items.append(notification_item)
 
         # 4. Sort all items by created_at (oldest to newest - bottom is newest)
         feed_items.sort(key=lambda x: x["created_at"])

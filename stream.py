@@ -2265,6 +2265,16 @@ async def accept_follow_request(request_data: FollowActionRequest):
         # Delete the pending request
         db.delete(pending_request)
 
+        # Delete the follow request notification from eras table
+        follow_request_notif = db.query(Era).filter(
+            Era.user_id == request_data.requested_id,
+            Era.actor_id == request_data.requester_id,
+            Era.content.like('%wants to follow you%')
+        ).first()
+        if follow_request_notif:
+            db.delete(follow_request_notif)
+            logger.info(f"🗑️  Deleted follow request notification for {request_data.requested_id}")
+
         db.commit()
 
         logger.info(f"✅ User {request_data.requested_id} accepted follow from {request_data.requester_id}")
@@ -2372,6 +2382,17 @@ async def decline_follow_request(request_data: FollowActionRequest):
 
         # Delete the pending request
         db.delete(pending_request)
+
+        # Delete the follow request notification from eras table
+        follow_request_notif = db.query(Era).filter(
+            Era.user_id == request_data.requested_id,
+            Era.actor_id == request_data.requester_id,
+            Era.content.like('%wants to follow you%')
+        ).first()
+        if follow_request_notif:
+            db.delete(follow_request_notif)
+            logger.info(f"🗑️  Deleted follow request notification for {request_data.requested_id}")
+
         db.commit()
 
         logger.info(f"❌ User {request_data.requested_id} declined follow from {request_data.requester_id}")

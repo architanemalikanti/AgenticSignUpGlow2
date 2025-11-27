@@ -2125,7 +2125,9 @@ async def send_follow_request(request_data: FollowRequestCreate):
         if requested.device_token:
             await send_follow_request_notification(
                 device_token=requested.device_token,
-                requester_name=requester_name
+                requester_name=requester_name,
+                requester_id=requester.id,
+                requester_username=requester.username
             )
         else:
             logger.info(f"⚠️  No device token for user {request_data.requested_id}, skipping push notification")
@@ -2295,7 +2297,9 @@ Return ONLY the text, no quotes."""
             await send_follow_accepted_notification(
                 device_token=requester.device_token,
                 accepter_name=accepter_name,
-                accepter_conversations=accepter_conversations
+                accepter_conversations=accepter_conversations,
+                accepter_id=accepter.id,
+                accepter_username=accepter.username
             )
         else:
             logger.info(f"⚠️  No device token for user {request_data.requester_id}, skipping push notification")

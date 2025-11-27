@@ -137,30 +137,40 @@ async def send_push_notification(
         return False
 
 
-async def send_follow_request_notification(device_token: str, requester_name: str) -> bool:
+async def send_follow_request_notification(device_token: str, requester_name: str, requester_id: str = None, requester_username: str = None) -> bool:
     """
     Send a notification when someone sends a follow request.
 
     Args:
         device_token: The device token of the user receiving the request
         requester_name: Name of the user who sent the request
+        requester_id: ID of the user who sent the request (for profile viewing)
+        requester_username: Username of the user who sent the request (for profile viewing)
 
     Returns:
         True if notification sent successfully
     """
+    notification_data = {
+        "type": "follow_request",
+        "requester_name": requester_name
+    }
+
+    # Add optional profile viewing data
+    if requester_id:
+        notification_data["requester_id"] = requester_id
+    if requester_username:
+        notification_data["requester_username"] = requester_username
+
     return await send_push_notification(
         device_token=device_token,
-        title=f"{requester_name} wants to follow u", 
+        title=f"{requester_name} wants to follow u",
         body=f"{requester_name} thinks your vibe matches hers. prove her right?",
         badge=1,
-        data={
-            "type": "follow_request",
-            "requester_name": requester_name
-        }
+        data=notification_data
     )
 
 
-async def send_follow_accepted_notification(device_token: str, accepter_name: str, accepter_conversations: list = None) -> bool:
+async def send_follow_accepted_notification(device_token: str, accepter_name: str, accepter_conversations: list = None, accepter_id: str = None, accepter_username: str = None) -> bool:
     """
     Send a notification when someone accepts your follow request.
 
@@ -168,6 +178,8 @@ async def send_follow_accepted_notification(device_token: str, accepter_name: st
         device_token: The device token of the user whose request was accepted
         accepter_name: Name of the user who accepted the request
         accepter_conversations: The accepter's conversation history
+        accepter_id: ID of the user who accepted the request (for profile viewing)
+        accepter_username: Username of the user who accepted the request (for profile viewing)
 
     Returns:
         True if notification sent successfully
@@ -197,8 +209,8 @@ Requirements:
 - 15-25 words total
 - Lowercase, casual, gen-z vibe
 - Third person about {accepter_name}
-- Give a cinemtic peek into what they're currently up to, what era they're life is in. 
-- feel free to use emojis. 
+- Give a cinemtic peek into what they're currently up to, what era they're life is in.
+- feel free to use emojis.
 
 Example: "dimple has accepted your request. currently in her girlboss era — interning at j.p. morgan sf living off iced lattes and late-night spreadsheets."
 
@@ -223,15 +235,23 @@ Return ONLY the notification text, no quotes or explanations."""
             logger.error(f"❌ Error generating notification body: {e}")
             # Keep fallback body
 
+    notification_data = {
+        "type": "follow_accepted",
+        "accepter_name": accepter_name
+    }
+
+    # Add optional profile viewing data
+    if accepter_id:
+        notification_data["accepter_id"] = accepter_id
+    if accepter_username:
+        notification_data["accepter_username"] = accepter_username
+
     return await send_push_notification(
         device_token=device_token,
         title=f"{accepter_name} has accepted ur request",
         body=notification_body,
         badge=1,
-        data={
-            "type": "follow_accepted",
-            "accepter_name": accepter_name
-        }
+        data=notification_data
     )
 
 

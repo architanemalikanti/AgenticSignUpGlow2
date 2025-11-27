@@ -264,10 +264,16 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
                     follower = db.query(User).filter(User.id == follower_id).first()
                     if follower and follower.device_token:
                         try:
+                            # Prepare notification title (name + post title)
+                            notification_title = f"{poster_name}: {title}" if title else f"{poster_name} posted"
+
+                            # Prepare notification body (first 50 chars of caption)
+                            notification_body = caption[:50] + "..." if caption and len(caption) > 50 else (caption or "")
+
                             await send_push_notification(
                                 device_token=follower.device_token,
-                                title=f"{poster_name} posted",
-                                body=title or caption[:50] + "..." if len(caption) > 50 else caption,
+                                title=notification_title,  # "{name}: {post title}"
+                                body=notification_body,  # First 50 chars of caption
                                 badge=1,
                                 data={
                                     "type": "new_post",

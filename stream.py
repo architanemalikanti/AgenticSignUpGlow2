@@ -2098,15 +2098,17 @@ async def send_follow_request(request_data: FollowRequestCreate):
                 "message": "Already following this user"
             }
 
-        # Check if request already exists
+        # Check if request already exists (IDEMPOTENCY)
         existing_request = db.query(FollowRequest).filter(
             FollowRequest.requester_id == request_data.requester_id,
             FollowRequest.requested_id == request_data.requested_id
         ).first()
 
         if existing_request:
+            # Request already exists - return success (idempotent)
+            logger.info(f"⚠️  Follow request from {request_data.requester_id} to {request_data.requested_id} already exists")
             return {
-                "status": "error",
+                "status": "success",
                 "message": "Follow request already sent"
             }
 
@@ -2122,15 +2124,26 @@ async def send_follow_request(request_data: FollowRequestCreate):
 
         logger.info(f"✅ User {request_data.requester_id} sent follow request to {request_data.requested_id}")
 
-        # Create era notification for User B (the requested user)
+        # Check if notification already exists (prevent duplicates)
         requester_name = requester.name if requester.name else requester.username
-        era_notification = Era(
-            user_id=request_data.requested_id,  # Notification belongs to User B
-            actor_id=request_data.requester_id,  # The requester is the actor
-            content=f"{requester_name} wants to follow you"
-        )
-        db.add(era_notification)
-        db.commit()
+        existing_notification = db.query(Era).filter(
+            Era.user_id == request_data.requested_id,
+            Era.actor_id == request_data.requester_id,
+            Era.content.like(f"%{requester_name} wants to follow you%")
+        ).first()
+
+        if not existing_notification:
+            # Only create notification if it doesn't exist
+            era_notification = Era(
+                user_id=request_data.requested_id,  # Notification belongs to User B
+                actor_id=request_data.requester_id,  # The requester is the actor
+                content=f"{requester_name} wants to follow you"
+            )
+            db.add(era_notification)
+            db.commit()
+            logger.info(f"✅ Created follow request notification for {request_data.requested_id}")
+        else:
+            logger.info(f"⚠️  Notification already exists, skipping duplicate")
 
         # Send push notification to the requested user (User B)
         if requested.device_token:
@@ -2695,66 +2708,23 @@ async def get_profile(viewer_id: str, profile_id: str):
     finally:
         db.close()
 
-@app.get("/eras/{user_id}")
-@app.get("/notifications/{user_id}")  # Alias for iOS compatibility
-async def get_feed(user_id: str):
+@app.get("/notifications/{user_id}")
+async def get_notifications(user_id: str):
     """
-    Get eras feed for a user: eras from people they follow + their own notifications.
+    Get notifications for a user: follow requests and follow accepts ONLY.
 
-    Flow:
-    1. Find who user follows
-    2. Get all eras from followed users (ordered by time)
-    3. Get user's own notifications (follow requests, follow accepts)
-    4. Combine and sort by time (newest at bottom for scrolling)
+    NO eras/status updates - only actionable notifications.
 
     Args:
-        user_id: Alice's user ID
+        user_id: User's ID
 
     Returns:
-        Combined feed of eras and notifications, sorted oldest to newest
+        List of follow request and follow accept notifications, sorted oldest to newest
     """
     db = SessionLocal()
     try:
-        # 1. Find who this user follows
-        follows = db.query(Follow).filter(
-            Follow.follower_id == user_id
-        ).all()
-
-        followed_user_ids = [f.following_id for f in follows]
-
-        # 2. Get all eras from followed users (their era posts)
+        # Get user's own notifications (follow requests and accepts ONLY)
         feed_items = []
-
-        if followed_user_ids:
-            eras_from_followed = db.query(Era).filter(
-                Era.user_id.in_(followed_user_ids)
-            ).order_by(Era.created_at.asc()).all()
-
-            for era in eras_from_followed:
-                poster = db.query(User).filter(User.id == era.user_id).first()
-
-                era_item = {
-                    "type": "era",
-                    "id": era.id,
-                    "user_id": era.user_id,
-                    "username": poster.username if poster else "unknown",
-                    "name": poster.name if poster else "Unknown",
-                    "content": era.content,
-                    "created_at": era.created_at.isoformat()
-                }
-
-                # Add actor_id - for eras from followed users, the actor is the poster
-                # Use actor_id from database if it exists, otherwise use user_id (self-posted era)
-                actor_id = era.actor_id if era.actor_id else era.user_id
-                if poster:
-                    era_item["actor_id"] = actor_id
-                    era_item["actor_username"] = poster.username
-                    era_item["actor_name"] = poster.name
-                    era_item["actor_profile_image"] = poster.profile_image
-
-                feed_items.append(era_item)
-
-        # 3. Get user's own notifications (follow requests and accepts)
         user_notifications = db.query(Era).filter(
             Era.user_id == user_id
         ).order_by(Era.created_at.asc()).all()
@@ -2765,8 +2735,11 @@ async def get_feed(user_id: str):
                 notif_type = "follow_request"
             elif "accepted your follow request" in notif.content:
                 notif_type = "follow_accept"
+            elif "posted" in notif.content:
+                notif_type = "new_post"
             else:
-                notif_type = "notification"
+                # Skip anything that's not a recognized notification type
+                continue
 
             # Get actor details if actor_id exists
             actor_info = None
@@ -2794,14 +2767,14 @@ async def get_feed(user_id: str):
 
             feed_items.append(notification_item)
 
-        # 4. Sort all items by created_at (oldest to newest - bottom is newest)
+        # Sort all items by created_at (oldest to newest - bottom is newest)
         feed_items.sort(key=lambda x: x["created_at"])
 
         return {
             "status": "success",
             "user_id": user_id,
             "count": len(feed_items),
-            "feed": feed_items
+            "notifications": feed_items  # Changed from "feed" to "notifications"
         }
 
     except Exception as e:

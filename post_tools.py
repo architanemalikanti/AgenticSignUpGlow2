@@ -251,6 +251,7 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
 
         # Notify followers about the new post
         try:
+            from database.models import Era
             followers = db.query(Follow).filter(Follow.following_id == user_id).all()
             follower_ids = [f.follower_id for f in followers]
 
@@ -260,16 +261,30 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
             if follower_ids:
                 from push_notifications import send_push_notification
 
+                # Prepare notification content
+                notification_title = f"{poster_name}: {title}" if title else f"{poster_name} posted"
+                notification_body = caption[:50] + "..." if caption and len(caption) > 50 else (caption or "")
+                notification_content = f"{poster_name} posted: {title}" if title else f"{poster_name} posted"
+
                 for follower_id in follower_ids:
                     follower = db.query(User).filter(User.id == follower_id).first()
+
+                    # Create notification in database for each follower
+                    try:
+                        post_notification = Era(
+                            user_id=follower_id,  # Notification belongs to the follower
+                            actor_id=user_id,  # The poster is the actor
+                            content=notification_content
+                        )
+                        db.add(post_notification)
+                        db.commit()
+                        logger.info(f"✅ Created post notification for follower {follower_id}")
+                    except Exception as db_error:
+                        logger.warning(f"⚠️ Failed to create DB notification for follower {follower_id}: {db_error}")
+
+                    # Send push notification
                     if follower and follower.device_token:
                         try:
-                            # Prepare notification title (name + post title)
-                            notification_title = f"{poster_name}: {title}" if title else f"{poster_name} posted"
-
-                            # Prepare notification body (first 50 chars of caption)
-                            notification_body = caption[:50] + "..." if caption and len(caption) > 50 else (caption or "")
-
                             await send_push_notification(
                                 device_token=follower.device_token,
                                 title=notification_title,  # "{name}: {post title}"
@@ -283,9 +298,9 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
                                 }
                             )
                         except Exception as notif_error:
-                            logger.warning(f"⚠️ Failed to notify follower {follower_id}: {notif_error}")
+                            logger.warning(f"⚠️ Failed to send push notification to follower {follower_id}: {notif_error}")
 
-                logger.info(f"✅ Sent notifications to {len(follower_ids)} followers")
+                logger.info(f"✅ Created {len(follower_ids)} post notifications and sent push notifications")
 
         except Exception as notif_error:
             logger.warning(f"⚠️ Error notifying followers: {notif_error}")

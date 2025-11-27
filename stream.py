@@ -2741,18 +2741,7 @@ async def get_notifications(user_id: str):
                 # Skip anything that's not a recognized notification type
                 continue
 
-            # Get actor details if actor_id exists
-            actor_info = None
-            if notif.actor_id:
-                actor = db.query(User).filter(User.id == notif.actor_id).first()
-                if actor:
-                    actor_info = {
-                        "actor_id": actor.id,
-                        "actor_username": actor.username,
-                        "actor_name": actor.name,
-                        "actor_profile_image": actor.profile_image
-                    }
-
+            # Build notification item - always include base fields
             notification_item = {
                 "id": notif.id,
                 "type": notif_type,
@@ -2761,9 +2750,20 @@ async def get_notifications(user_id: str):
                 "created_at": notif.created_at.isoformat()
             }
 
-            # Add actor info if available
-            if actor_info:
-                notification_item.update(actor_info)
+            # ALWAYS get and add actor details if actor_id exists
+            if notif.actor_id:
+                actor = db.query(User).filter(User.id == notif.actor_id).first()
+                if actor:
+                    # Add actor fields directly to notification_item
+                    notification_item["actor_id"] = actor.id
+                    notification_item["actor_username"] = actor.username
+                    notification_item["actor_name"] = actor.name
+                    notification_item["actor_profile_image"] = actor.profile_image
+                    logger.info(f"✅ Added actor info for notification {notif.id}: {actor.username}")
+                else:
+                    logger.warning(f"⚠️  Actor not found for actor_id: {notif.actor_id}")
+            else:
+                logger.warning(f"⚠️  Notification {notif.id} has no actor_id in database")
 
             feed_items.append(notification_item)
 

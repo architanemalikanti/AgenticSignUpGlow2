@@ -2684,6 +2684,7 @@ async def get_profile(viewer_id: str, profile_id: str):
         db.close()
 
 @app.get("/eras/{user_id}")
+@app.get("/notifications/{user_id}")  # Alias for iOS compatibility
 async def get_feed(user_id: str):
     """
     Get eras feed for a user: eras from people they follow + their own notifications.

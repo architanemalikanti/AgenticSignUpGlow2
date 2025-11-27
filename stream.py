@@ -2781,8 +2781,8 @@ async def get_feed(user_id: str):
                     }
 
             notification_item = {
-                "type": notif_type,
                 "id": notif.id,
+                "type": notif_type,
                 "user_id": notif.user_id,
                 "content": notif.content,
                 "created_at": notif.created_at.isoformat()

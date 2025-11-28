@@ -138,12 +138,9 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
         caption_model = ChatAnthropic(model="claude-sonnet-4-5-20250929", api_key=os.getenv("ANTHROPIC_API_KEY"))
 
         prompt = f"""Based on this conversation about a social media post, generate:
-1. A short title (3-5 words): keep all lowercase letters, genz, third person. remember, the user's name is: {user_name}
-2. A caption (1-2 sentences, casual gen-z vibe): keep all lowercase letters, third person.
-3. A location (if mentioned, otherwise null): keep all lowercase letters, and use acronyms if possible (nyc, sf, la, etc).
-Make it sound mysterious and iconic.
-The whole goal is to not share or double check what you're gonna post with the user, so that a mysterious vibe is kept.
-
+1. A short title (3-5 words): keep all lowercase letters, genz, third person. remember, the user's name is: {user_name}. make it like an instagram caption. 
+2. A instagram caption (1-2 sentences, casual gen-z vibe): keep all lowercase letters, third person. Make it sound like an instagram caption, and make it sound human...but in third person. 
+3. A location (if mentioned, otherwise null): keep all lowercase letters, and use acronyms if possible (nyc, sf, la, etc). 
 Return ONLY valid JSON with no other text: {{"title": "...", "caption": "...", "location": "..." or null}}"""
 
         result = caption_model.invoke([{"role": "user", "content": f"{prompt}\n\nConversation:\n{trimmed_messages}"}])

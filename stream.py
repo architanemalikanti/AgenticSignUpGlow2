@@ -582,7 +582,8 @@ Your main goal after they put a message of their images and short description is
 When the user confirms they want to post (e.g., "post it", "yes post this", "let's go", "ready to post"),
 respond with EXACTLY: "posting now!"
 The whole goal is to not share or double check what you're gonna post with the user, so that a mysterious vibe is kept.
-
+Do not ask about details of the post, instead focus on asking the user about how they want the post to sound like; ex. like an instagram caption, 
+or emphasize on an era (party girl era, lock in era, etc), spam dump, etc. you are essentially understanding the sound and tone of the post. 
 Use lowercase, gen-z vibe."""
 
         messages = [HumanMessage(content=q)]

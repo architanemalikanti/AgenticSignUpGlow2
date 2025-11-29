@@ -713,21 +713,26 @@ Use lowercase, gen-z vibe."""
 
 
 @app.get("/feed/{user_id}")
-async def get_user_feed(user_id: str, limit: int = 20, offset: int = 0):
+async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
     """
     Get posts for a user's feed.
     Returns posts from users they follow, ordered by creation time (newest first).
+    Uses eager loading to fetch all data in ONE query instead of N+1 queries.
 
     Query params:
     - user_id: ID of the user viewing the feed
-    - limit: Number of posts to return (default 20)
+    - limit: Number of posts to return (default 5, max 20)
     - offset: Offset for pagination (default 0)
     """
     from database.models import Post, PostMedia
     from sqlalchemy import desc
+    from sqlalchemy.orm import joinedload
 
     try:
         db = SessionLocal()
+
+        # Limit max to 20 posts per request
+        limit = min(limit, 20)
 
         # Get list of users this user follows
         following = db.query(Follow.following_id).filter(Follow.follower_id == user_id).all()
@@ -737,21 +742,20 @@ async def get_user_feed(user_id: str, limit: int = 20, offset: int = 0):
         following_ids.append(user_id)
 
         # Get posts from followed users + own posts
-        posts_query = db.query(Post).filter(
+        # Use eager loading to fetch user and media in ONE query (not 11 queries!)
+        posts = db.query(Post).filter(
             Post.user_id.in_(following_ids)
-        ).order_by(desc(Post.created_at)).limit(limit).offset(offset)
-
-        posts = posts_query.all()
+        ).options(
+            joinedload(Post.user),
+            joinedload(Post.media)
+        ).order_by(desc(Post.created_at)).limit(limit).offset(offset).all()
 
         # Build response with post data and media
         feed_posts = []
         for post in posts:
-            # Get user info
-            user = db.query(User).filter(User.id == post.user_id).first()
-
-            # Get media for this post
-            media = db.query(PostMedia).filter(PostMedia.post_id == post.id).all()
-            media_urls = [m.media_url for m in media]
+            # User and media already loaded via joinedload (no extra queries!)
+            user = post.user
+            media_urls = [m.media_url for m in post.media]
 
             feed_posts.append({
                 "post_id": post.id,
@@ -772,12 +776,14 @@ async def get_user_feed(user_id: str, limit: int = 20, offset: int = 0):
 
         db.close()
 
-        logger.info(f"✅ Retrieved {len(feed_posts)} posts for user {user_id}'s feed")
+        logger.info(f"✅ Retrieved {len(feed_posts)} posts for user {user_id}'s feed (offset: {offset})")
 
         return {
             "status": "success",
             "posts": feed_posts,
-            "total": len(feed_posts)
+            "total": len(feed_posts),
+            "offset": offset,
+            "limit": limit
         }
 
     except Exception as e:

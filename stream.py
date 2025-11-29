@@ -867,6 +867,7 @@ async def get_images_batch(offset: int = 0, limit: int = 5):
     - Array of unique image URLs from post_media table
     """
     from database.models import PostMedia
+    from sqlalchemy import desc
 
     try:
         db = SessionLocal()

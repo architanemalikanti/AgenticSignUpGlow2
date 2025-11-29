@@ -795,37 +795,41 @@ async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
 
 
 @app.get("/posts/user/{user_id}")
-async def get_user_posts(user_id: str, limit: int = 20, offset: int = 0):
+async def get_user_posts(user_id: str, limit: int = 2, offset: int = 0):
     """
     Get all posts by a specific user.
+    Uses eager loading to fetch all data in ONE query instead of N+1 queries.
 
     Query params:
     - user_id: ID of the user whose posts to retrieve
-    - limit: Number of posts to return (default 20)
+    - limit: Number of posts to return (default 2, max 20)
     - offset: Offset for pagination (default 0)
     """
     from database.models import Post, PostMedia
     from sqlalchemy import desc
+    from sqlalchemy.orm import joinedload
 
     try:
         db = SessionLocal()
 
-        # Get posts by this user
-        posts_query = db.query(Post).filter(
-            Post.user_id == user_id
-        ).order_by(desc(Post.created_at)).limit(limit).offset(offset)
+        # Limit max to 20 posts per request
+        limit = min(limit, 20)
 
-        posts = posts_query.all()
-
-        # Get user info
+        # Get user info once
         user = db.query(User).filter(User.id == user_id).first()
+
+        # Get posts by this user with eager loading for media
+        posts = db.query(Post).filter(
+            Post.user_id == user_id
+        ).options(
+            joinedload(Post.media)  # ← Fetch media in same query
+        ).order_by(desc(Post.created_at)).limit(limit).offset(offset).all()
 
         # Build response with post data and media
         user_posts = []
         for post in posts:
-            # Get media for this post
-            media = db.query(PostMedia).filter(PostMedia.post_id == post.id).all()
-            media_urls = [m.media_url for m in media]
+            # Media already loaded via joinedload (no extra queries!)
+            media_urls = [m.media_url for m in post.media]
 
             user_posts.append({
                 "post_id": post.id,
@@ -841,14 +845,17 @@ async def get_user_posts(user_id: str, limit: int = 20, offset: int = 0):
 
         db.close()
 
-        logger.info(f"✅ Retrieved {len(user_posts)} posts for user {user_id}")
+        logger.info(f"✅ Retrieved {len(user_posts)} posts for user {user_id} (offset: {offset})")
 
         return {
             "status": "success",
             "user_id": user_id,
             "username": user.username if user else "unknown",
             "name": user.name if user else "Unknown",
-            "posts": user_posts
+            "posts": user_posts,
+            "total": len(user_posts),
+            "offset": offset,
+            "limit": limit
         }
 
     except Exception as e:

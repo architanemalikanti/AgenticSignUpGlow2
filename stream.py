@@ -853,6 +853,61 @@ async def get_user_posts(user_id: str, limit: int = 20, offset: int = 0):
         }
 
 
+@app.get("/images/batch")
+async def get_images_batch(offset: int = 0, limit: int = 5):
+    """
+    Fetch a batch of unique post images from Firebase Storage.
+    Returns Firebase Storage URLs for iOS to load images progressively.
+
+    Query params:
+    - offset: Starting position (default 0)
+    - limit: Number of images to return (default 5, max 20)
+
+    Returns:
+    - Array of unique image URLs from post_media table
+    """
+    from database.models import PostMedia
+
+    try:
+        db = SessionLocal()
+
+        # Limit max to 20 images per request
+        limit = min(limit, 20)
+
+        # Get unique images from post_media, ordered by creation time (newest first)
+        images = db.query(PostMedia.media_url, PostMedia.id, PostMedia.created_at).order_by(
+            desc(PostMedia.created_at)
+        ).limit(limit).offset(offset).all()
+
+        # Build response
+        image_list = []
+        for img in images:
+            image_list.append({
+                "id": img.id,
+                "url": img.media_url,  # Firebase Storage URL
+                "created_at": img.created_at.isoformat() if img.created_at else None
+            })
+
+        db.close()
+
+        logger.info(f"✅ Fetched {len(image_list)} images (offset: {offset}, limit: {limit})")
+
+        return {
+            "status": "success",
+            "images": image_list,
+            "count": len(image_list),
+            "offset": offset,
+            "limit": limit
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching images batch: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @app.get("/post/status/{redis_id}")
 async def poll_post_status(redis_id: str):
     """

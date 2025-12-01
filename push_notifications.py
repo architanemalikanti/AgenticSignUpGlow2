@@ -102,7 +102,8 @@ async def send_push_notification(
 
         aps = {
             "alert": alert,
-            "sound": sound
+            "sound": sound,
+            "content-available": 1  # Ensures notification wakes the app
         }
 
         if badge is not None:
@@ -115,11 +116,12 @@ async def send_push_notification(
         if data:
             payload.update(data)
 
-        # Create notification request
+        # Create notification request with high priority
         request = NotificationRequest(
             device_token=device_token,
             message=payload,
-            push_type=PushType.ALERT
+            push_type=PushType.ALERT,
+            priority=10  # High priority for immediate delivery with banner
         )
 
         # Log what we're about to send

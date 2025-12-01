@@ -17,6 +17,13 @@ from redis_client import r
 
 load_dotenv()
 
+# Configure logging to output to console
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s:%(name)s:%(message)s',
+    handlers=[logging.StreamHandler()]
+)
+
 logger = logging.getLogger(__name__)
 
 

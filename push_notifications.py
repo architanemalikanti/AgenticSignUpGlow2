@@ -122,18 +122,31 @@ async def send_push_notification(
             push_type=PushType.ALERT
         )
 
+        # Log what we're about to send
+        logger.info(f"📤 Sending push notification to device: {device_token[:20]}... (sandbox={APNS_USE_SANDBOX})")
+        logger.info(f"📤 Title: {title}, Body: {body[:50]}...")
+
         # Send the notification
         response = await client.send_notification(request)
 
         if response.is_successful:
-            logger.info(f"✅ Push notification sent: {title}")
+            logger.info(f"✅ Push notification sent successfully: {title}")
             return True
         else:
-            logger.error(f"❌ Failed to send push notification: {response.description}")
+            logger.error(f"❌ Failed to send push notification!")
+            logger.error(f"   Response: {response.description}")
+            logger.error(f"   Status: {response.status if hasattr(response, 'status') else 'unknown'}")
+            logger.error(f"   Device token: {device_token[:20]}...")
+            logger.error(f"   Sandbox mode: {APNS_USE_SANDBOX}")
             return False
 
     except Exception as e:
         logger.error(f"❌ Error sending push notification: {e}")
+        logger.error(f"   Exception type: {type(e).__name__}")
+        logger.error(f"   Device token: {device_token[:20]}...")
+        logger.error(f"   Sandbox mode: {APNS_USE_SANDBOX}")
+        import traceback
+        logger.error(f"   Traceback: {traceback.format_exc()}")
         return False
 
 

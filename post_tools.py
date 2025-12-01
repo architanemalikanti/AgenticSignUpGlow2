@@ -252,10 +252,13 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
             followers = db.query(Follow).filter(Follow.following_id == user_id).all()
             follower_ids = [f.follower_id for f in followers]
 
+            logger.info(f"🔔 Post {post_id} created by {user_id}. Found {len(follower_ids)} followers to notify")
+
             poster = db.query(User).filter(User.id == user_id).first()
             poster_name = poster.name if poster else "Someone"
 
             if follower_ids:
+                logger.info(f"🔔 Starting notification process for {len(follower_ids)} followers")
                 from push_notifications import send_push_notification
 
                 # Prepare notification content
@@ -281,6 +284,7 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
 
                     # Send push notification
                     if follower and follower.device_token:
+                        logger.info(f"🔔 Follower {follower_id} ({follower.username}) has device token, sending push notification...")
                         try:
                             await send_push_notification(
                                 device_token=follower.device_token,
@@ -296,6 +300,8 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
                             )
                         except Exception as notif_error:
                             logger.warning(f"⚠️ Failed to send push notification to follower {follower_id}: {notif_error}")
+                    else:
+                        logger.info(f"🔔 Follower {follower_id} has no device token, skipping push notification")
 
                 logger.info(f"✅ Created {len(follower_ids)} post notifications and sent push notifications")
 

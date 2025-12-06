@@ -102,8 +102,7 @@ async def send_push_notification(
 
         aps = {
             "alert": alert,
-            "sound": sound,
-            "content-available": 1  # Ensures notification wakes the app
+            "sound": sound
         }
 
         if badge is not None:
@@ -116,17 +115,18 @@ async def send_push_notification(
         if data:
             payload.update(data)
 
-        # Create notification request with high priority
+        # Create notification request
         request = NotificationRequest(
             device_token=device_token,
             message=payload,
             push_type=PushType.ALERT,
-            priority=10  # High priority for immediate delivery with banner
+            priority=10  # Immediate delivery for user-visible alert
         )
 
         # Log what we're about to send
         logger.info(f"📤 Sending push notification to device: {device_token[:20]}... (sandbox={APNS_USE_SANDBOX})")
         logger.info(f"📤 Title: {title}, Body: {body[:50]}...")
+        logger.info(f"📤 Full payload: {payload}")
 
         # Send the notification
         response = await client.send_notification(request)

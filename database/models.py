@@ -32,6 +32,7 @@ class User(Base):
     device_token = Column(String(255), nullable=True)  # APNs device token for push notifications
     eras = Column(ARRAY(String), default=list)  # Array of era texts (history of eras)
     profile_image = Column(String(500), nullable=True)  # Cartoon avatar URL from S3
+    is_private = Column(Boolean, default=False, nullable=False)  # Profile privacy setting (default: public)
 
     # One-to-many relationship with Design table
     designs = relationship("Design", back_populates="user")

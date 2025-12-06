@@ -2135,7 +2135,8 @@ class FollowActionRequest(BaseModel):
 async def send_follow_request(request_data: FollowRequestCreate):
     """
     User A sends a follow request to User B.
-    Since all profiles are private, this creates a pending request.
+    If User B's profile is private, this creates a pending request.
+    If User B's profile is public, this immediately creates a follow relationship.
 
     Request body:
     {
@@ -2169,6 +2170,35 @@ async def send_follow_request(request_data: FollowRequestCreate):
                 "message": "Already following this user"
             }
 
+        # If profile is PUBLIC, immediately create follow relationship
+        if not requested.is_private:
+            new_follow = Follow(
+                follower_id=request_data.requester_id,
+                following_id=request_data.requested_id
+            )
+            db.add(new_follow)
+            db.commit()
+            db.refresh(new_follow)
+
+            logger.info(f"✅ User {request_data.requester_id} now follows {request_data.requested_id} (public profile)")
+
+            # Send notification to the followed user
+            requester_name = requester.name if requester.name else requester.username
+            era_notification = Era(
+                user_id=request_data.requested_id,
+                actor_id=request_data.requester_id,
+                content=f"{requester_name} started following you"
+            )
+            db.add(era_notification)
+            db.commit()
+
+            return {
+                "status": "success",
+                "message": "Now following (public profile)",
+                "follow_id": new_follow.id
+            }
+
+        # If profile is PRIVATE, create a follow request
         # Check if request already exists (IDEMPOTENCY)
         existing_request = db.query(FollowRequest).filter(
             FollowRequest.requester_id == request_data.requester_id,
@@ -2721,6 +2751,42 @@ async def get_profile(viewer_id: str, profile_id: str):
                 } if latest_design else None
             }
 
+        # Check if profile is PUBLIC
+        if not profile_user.is_private:
+            # Public profile - show full profile with design regardless of follow status
+            latest_design = db.query(Design).filter(
+                Design.user_id == profile_id
+            ).order_by(Design.created_at.desc()).first()
+
+            # Check if following to determine follow_status
+            follow = db.query(Follow).filter(
+                Follow.follower_id == viewer_id,
+                Follow.following_id == profile_id
+            ).first()
+
+            return {
+                "status": "success",
+                "follow_status": "following" if follow else "not_following",
+                "is_public": True,
+                "user": {
+                    "id": profile_user.id,
+                    "username": profile_user.username,
+                    "name": profile_user.name,
+                    "university": profile_user.university,
+                    "occupation": profile_user.occupation
+                },
+                "design": {
+                    "id": latest_design.id,
+                    "two_captions": latest_design.two_captions,
+                    "intro_caption": latest_design.intro_caption,
+                    "eight_captions": latest_design.eight_captions,
+                    "design_name": latest_design.design_name,
+                    "song": latest_design.song,
+                    "created_at": latest_design.created_at.isoformat()
+                } if latest_design else None
+            }
+
+        # Profile is PRIVATE - check follow/request status
         # Check if viewer follows this profile
         follow = db.query(Follow).filter(
             Follow.follower_id == viewer_id,
@@ -2743,6 +2809,7 @@ async def get_profile(viewer_id: str, profile_id: str):
             return {
                 "status": "success",
                 "follow_status": "following",
+                "is_public": False,
                 "user": {
                     "id": profile_user.id,
                     "username": profile_user.username,
@@ -2766,6 +2833,7 @@ async def get_profile(viewer_id: str, profile_id: str):
             return {
                 "status": "success",
                 "follow_status": "pending",
+                "is_public": False,
                 "user": {
                     "id": profile_user.id,
                     "username": profile_user.username,
@@ -2781,6 +2849,7 @@ async def get_profile(viewer_id: str, profile_id: str):
             return {
                 "status": "success",
                 "follow_status": "not_following",
+                "is_public": False,
                 "user": {
                     "id": profile_user.id,
                     "username": profile_user.username,
@@ -2796,6 +2865,54 @@ async def get_profile(viewer_id: str, profile_id: str):
         return {
             "status": "error",
             "error": str(e)
+        }
+    finally:
+        db.close()
+
+@app.post("/profile/{user_id}/privacy")
+async def toggle_privacy(user_id: str, is_private: bool):
+    """
+    Toggle a user's profile privacy setting.
+
+    Args:
+        user_id: The user's ID
+        is_private: True for private profile, False for public profile
+
+    Request body:
+    {
+        "is_private": true or false
+    }
+
+    Returns:
+        Success message with updated privacy status
+    """
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            return {
+                "status": "error",
+                "message": "User not found"
+            }
+
+        user.is_private = is_private
+        db.commit()
+
+        logger.info(f"✅ User {user_id} profile privacy set to {'private' if is_private else 'public'}")
+
+        return {
+            "status": "success",
+            "message": f"Profile is now {'private' if is_private else 'public'}",
+            "is_private": is_private
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating privacy setting: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
         }
     finally:
         db.close()

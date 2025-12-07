@@ -794,6 +794,64 @@ async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
         }
 
 
+@app.get("/feed/recommendations/{user_id}")
+async def get_ai_recommendations(user_id: str):
+    """
+    Get AI-generated user recommendations based on semantic similarity.
+
+    Workflow:
+    1. Generate 5 AI group descriptions (e.g., "college students in NYC into fashion")
+    2. For each description, find top 5 similar users from Pinecone
+    3. Return groups with their matched users
+
+    Returns:
+        {
+            "status": "success",
+            "groups": [
+                {
+                    "description": "college students in NYC into fashion",
+                    "users": [
+                        {"user_id": "...", "name": "...", "username": "...", ...},
+                        ...
+                    ]
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+
+        # Step 1: Generate 5 AI group descriptions
+        logger.info(f"🤖 Generating AI groups for user {user_id}")
+        group_descriptions = generate_ai_groups(user_id)
+
+        # Step 2: For each description, find matching users
+        groups = []
+        for description in group_descriptions:
+            logger.info(f"🔍 Finding users for: {description}")
+            matched_users = find_users_from_ai_description(description, top_k=5)
+
+            groups.append({
+                "description": description,
+                "users": matched_users
+            })
+
+        logger.info(f"✅ Generated {len(groups)} recommendation groups for user {user_id}")
+
+        return {
+            "status": "success",
+            "groups": groups
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error generating recommendations: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @app.get("/posts/user/{user_id}")
 async def get_user_posts(user_id: str, limit: int = 2, offset: int = 0):
     """

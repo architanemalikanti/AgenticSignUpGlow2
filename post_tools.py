@@ -269,8 +269,8 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
                 from push_notifications import send_push_notification
 
                 # Prepare notification content
-                notification_title = f"{poster_name}: {title}" if title else f"{poster_name} posted"
-                notification_body = caption[:50] + "..." if caption and len(caption) > 50 else (caption or "")
+                notification_title = title if title else "New Post"
+                notification_body = caption if caption else ""
                 notification_content = f"{poster_name} posted: {title}" if title else f"{poster_name} posted"
 
                 for follower_id in follower_ids:

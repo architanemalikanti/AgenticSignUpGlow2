@@ -239,6 +239,11 @@ def finalize_simple_signup(session_id: str) -> str:
             db.commit()
             db.refresh(new_user)
 
+            # Create profile embedding in Pinecone
+            from profile_embeddings import create_user_profile_embedding
+            embedding_result = create_user_profile_embedding(new_user)
+            logger.info(f"📊 Embedding creation: {embedding_result}")
+
             # Generate JWT tokens
             from jwt_utils import create_access_token, create_refresh_token
             access_token = create_access_token(user_id)

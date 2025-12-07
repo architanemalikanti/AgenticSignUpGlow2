@@ -10,7 +10,7 @@ openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Initialize Pinecone
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))  # Set PINECONE_INDEX_NAME in .env
+index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
 
 
 def create_user_profile_embedding(user):
@@ -34,7 +34,7 @@ def create_user_profile_embedding(user):
         # Create the embedding using new OpenAI API
         response = openai_client.embeddings.create(
             input=profile_text,
-            model="text-embedding-3-small"  # Better and cheaper than ada-002
+            model="text-embedding-3-small"
         )
 
         embedding_vector = response.data[0].embedding
@@ -105,7 +105,7 @@ Format: ["description 1", "description 2", "description 3", "description 4", "de
             end = content.rfind("]") + 1
             json_str = content[start:end]
             groups = json.loads(json_str)
-            return groups[:5]  # Ensure only 5
+            return groups[:5]
         else:
             # Fallback
             return [
@@ -118,7 +118,6 @@ Format: ["description 1", "description 2", "description 3", "description 4", "de
 
     except Exception as e:
         print(f"Error generating AI groups: {e}")
-        # Return fallback groups
         return [
             "college students exploring their interests",
             "young professionals in tech",
@@ -161,7 +160,7 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
             matched_users.append({
                 "user_id": user_data.get("user_id"),
                 "name": user_data.get("name"),
-                "username": user_data.get("username", ""),  # May not be in metadata
+                "username": user_data.get("username", ""),
                 "city": user_data.get("city"),
                 "occupation": user_data.get("occupation"),
                 "gender": user_data.get("gender"),

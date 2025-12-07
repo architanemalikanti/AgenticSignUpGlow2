@@ -26,6 +26,9 @@ anthropic==0.72.0
 openai==2.7.1
 tavily-python==0.7.12
 
+# Vector Database
+pinecone==8.0.0
+
 # Serialization & Validation
 pydantic==2.12.4
 pydantic-settings==2.11.0

@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Era
+from database.models import User, Design, Follow, FollowRequest, Notification
 from agent import Agent
 from prompt_manager import set_prompt
 from redis_client import r
@@ -1854,7 +1854,7 @@ async def push_era(era_data: EraPush):
             }
 
         # Create new era post in eras table
-        new_era = Era(
+        new_era = Notification(
             user_id=era_data.user_id,
             content=era_data.era_text
         )
@@ -2184,7 +2184,7 @@ async def send_follow_request(request_data: FollowRequestCreate):
 
             # Send in-app notification to the followed user
             requester_name = requester.name if requester.name else requester.username
-            era_notification = Era(
+            era_notification = Notification(
                 user_id=request_data.requested_id,
                 actor_id=request_data.requester_id,
                 content=f"{requester_name} started following you"
@@ -2239,15 +2239,15 @@ async def send_follow_request(request_data: FollowRequestCreate):
 
         # Check if notification already exists (prevent duplicates)
         requester_name = requester.name if requester.name else requester.username
-        existing_notification = db.query(Era).filter(
-            Era.user_id == request_data.requested_id,
-            Era.actor_id == request_data.requester_id,
-            Era.content.like(f"%{requester_name} wants to follow you%")
+        existing_notification = db.query(Notification).filter(
+            Notification.user_id == request_data.requested_id,
+            Notification.actor_id == request_data.requester_id,
+            Notification.content.like(f"%{requester_name} wants to follow you%")
         ).first()
 
         if not existing_notification:
             # Only create notification if it doesn't exist
-            era_notification = Era(
+            era_notification = Notification(
                 user_id=request_data.requested_id,  # Notification belongs to User B
                 actor_id=request_data.requester_id,  # The requester is the actor
                 content=f"{requester_name} wants to follow you"
@@ -2379,10 +2379,10 @@ async def accept_follow_request(request_data: FollowActionRequest):
         db.delete(pending_request)
 
         # Delete the follow request notification from eras table
-        follow_request_notif = db.query(Era).filter(
-            Era.user_id == request_data.requested_id,
-            Era.actor_id == request_data.requester_id,
-            Era.content.like('%wants to follow you%')
+        follow_request_notif = db.query(Notification).filter(
+            Notification.user_id == request_data.requested_id,
+            Notification.actor_id == request_data.requester_id,
+            Notification.content.like('%wants to follow you%')
         ).first()
         if follow_request_notif:
             db.delete(follow_request_notif)
@@ -2432,7 +2432,7 @@ Return ONLY the text, no quotes."""
                 logger.error(f"Error generating AI message: {e}")
 
         # Create era notification for User A (the requester)
-        era_notification = Era(
+        era_notification = Notification(
             user_id=request_data.requester_id,  # Notification belongs to User A
             actor_id=request_data.requested_id,  # The accepter is the actor
             content=notification_message
@@ -2497,10 +2497,10 @@ async def decline_follow_request(request_data: FollowActionRequest):
         db.delete(pending_request)
 
         # Delete the follow request notification from eras table
-        follow_request_notif = db.query(Era).filter(
-            Era.user_id == request_data.requested_id,
-            Era.actor_id == request_data.requester_id,
-            Era.content.like('%wants to follow you%')
+        follow_request_notif = db.query(Notification).filter(
+            Notification.user_id == request_data.requested_id,
+            Notification.actor_id == request_data.requester_id,
+            Notification.content.like('%wants to follow you%')
         ).first()
         if follow_request_notif:
             db.delete(follow_request_notif)
@@ -2946,9 +2946,9 @@ async def get_notifications(user_id: str):
     try:
         # Get user's own notifications (follow requests and accepts ONLY)
         feed_items = []
-        user_notifications = db.query(Era).filter(
-            Era.user_id == user_id
-        ).order_by(Era.created_at.asc()).all()
+        user_notifications = db.query(Notification).filter(
+            Notification.user_id == user_id
+        ).order_by(Notification.created_at.asc()).all()
 
         for notif in user_notifications:
             # Determine notification type based on content

@@ -93,8 +93,8 @@ class FollowRequest(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class Era(Base):
-    __tablename__ = 'eras'
+class Notification(Base):
+    __tablename__ = 'notifications'
 
     # Primary key
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -105,10 +105,10 @@ class Era(Base):
     # Foreign key - user who triggered this notification (the actor)
     # For follow requests: the requester
     # For follow accepts: the accepter
-    # For eras: null (self-posted)
+    # For posts: the poster
     actor_id = Column(String(36), ForeignKey('users.id'), nullable=True)
 
-    # Content of the era/notification
+    # Content of the notification
     content = Column(String, nullable=False)
 
     # Timestamp

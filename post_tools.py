@@ -255,7 +255,7 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
 
         # Notify followers about the new post
         try:
-            from database.models import Era
+            from database.models import Notification
             followers = db.query(Follow).filter(Follow.following_id == user_id).all()
             follower_ids = [f.follower_id for f in followers]
 
@@ -278,7 +278,7 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
 
                     # Create notification in database for each follower
                     try:
-                        post_notification = Era(
+                        post_notification = Notification(
                             user_id=follower_id,  # Notification belongs to the follower
                             actor_id=user_id,  # The poster is the actor
                             content=notification_content

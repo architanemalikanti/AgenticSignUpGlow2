@@ -56,6 +56,24 @@ def delete_user_posts(username):
 
             if count > 0:
                 print(f'\n📝 Found {count} posts in "posts" table')
+
+                # First, delete associated media from post_media table
+                result = conn.execute(text("""
+                    SELECT COUNT(*) FROM post_media
+                    WHERE post_id IN (SELECT id FROM posts WHERE user_id = :user_id)
+                """), {'user_id': user_id})
+                media_count = result.fetchone()[0]
+
+                if media_count > 0:
+                    print(f'📸 Deleting {media_count} associated media items first...')
+                    conn.execute(text("""
+                        DELETE FROM post_media
+                        WHERE post_id IN (SELECT id FROM posts WHERE user_id = :user_id)
+                    """), {'user_id': user_id})
+                    conn.commit()
+                    print(f'✅ Deleted {media_count} media items')
+
+                # Now delete the posts
                 conn.execute(
                     text('DELETE FROM posts WHERE user_id = :user_id'),
                     {'user_id': user_id}

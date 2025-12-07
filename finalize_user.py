@@ -300,11 +300,22 @@ def finalize_user_background(session_id: str) -> int:
         if not conversations_saved:
             logger.warning(f"⚠️  Failed to save conversations for session {session_id}, but continuing...")
 
-        # Step 3: Generate JWT tokens
+        # Step 3: Create vector embedding of user profile
+        from vector_embeddings import create_and_store_user_embedding
+        try:
+            embedding_created = create_and_store_user_embedding(user_id)
+            if embedding_created:
+                logger.info(f"✅ Created vector embedding for user {user_id}")
+            else:
+                logger.warning(f"⚠️  Failed to create vector embedding for user {user_id}, but continuing...")
+        except Exception as e:
+            logger.warning(f"⚠️  Error creating vector embedding: {str(e)}, but continuing...")
+
+        # Step 4: Generate JWT tokens
         access_token, refresh_token = create_token_pair(user_id)
         logger.info(f"🔑 Generated JWT tokens for user {user_id}")
 
-        # Step 4: Store user_id and tokens in the SAME Redis session key
+        # Step 5: Store user_id and tokens in the SAME Redis session key
         # iOS will poll this key to get the user_id and tokens, then delete it (along with SQLite)
         redis_key = f"session:{session_id}"
         session_data = json.loads(r.get(redis_key) or '{}')

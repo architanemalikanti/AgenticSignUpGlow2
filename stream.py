@@ -2182,7 +2182,7 @@ async def send_follow_request(request_data: FollowRequestCreate):
 
             logger.info(f"✅ User {request_data.requester_id} now follows {request_data.requested_id} (public profile)")
 
-            # Send notification to the followed user
+            # Send in-app notification to the followed user
             requester_name = requester.name if requester.name else requester.username
             era_notification = Era(
                 user_id=request_data.requested_id,
@@ -2191,6 +2191,18 @@ async def send_follow_request(request_data: FollowRequestCreate):
             )
             db.add(era_notification)
             db.commit()
+
+            # Send push notification to the followed user
+            from push_notifications import send_new_follower_notification
+            if requested.device_token:
+                await send_new_follower_notification(
+                    device_token=requested.device_token,
+                    follower_name=requester_name,
+                    follower_id=requester.id,
+                    follower_username=requester.username
+                )
+            else:
+                logger.info(f"⚠️  No device token for user {request_data.requested_id}, skipping push notification")
 
             return {
                 "status": "success",
@@ -2944,6 +2956,8 @@ async def get_notifications(user_id: str):
                 notif_type = "follow_request"
             elif "accepted your follow request" in notif.content:
                 notif_type = "follow_accept"
+            elif "started following you" in notif.content:
+                notif_type = "new_follower"
             elif "posted" in notif.content:
                 notif_type = "new_post"
             else:

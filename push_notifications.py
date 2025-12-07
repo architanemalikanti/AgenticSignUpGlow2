@@ -185,6 +185,39 @@ async def send_follow_request_notification(device_token: str, requester_name: st
     )
 
 
+async def send_new_follower_notification(device_token: str, follower_name: str, follower_id: str = None, follower_username: str = None) -> bool:
+    """
+    Send a notification when someone follows you (public profile - instant follow).
+
+    Args:
+        device_token: The device token of the user being followed
+        follower_name: Name of the user who followed
+        follower_id: ID of the user who followed (for profile viewing)
+        follower_username: Username of the user who followed (for profile viewing)
+
+    Returns:
+        True if notification sent successfully
+    """
+    notification_data = {
+        "type": "new_follower",
+        "follower_name": follower_name
+    }
+
+    # Add optional profile viewing data
+    if follower_id:
+        notification_data["follower_id"] = follower_id
+    if follower_username:
+        notification_data["follower_username"] = follower_username
+
+    return await send_push_notification(
+        device_token=device_token,
+        title=f"{follower_name} started following u",
+        body=f"{follower_name} is now following you. check out their vibe!",
+        badge=1,
+        data=notification_data
+    )
+
+
 async def send_follow_accepted_notification(device_token: str, accepter_name: str, accepter_conversations: list = None, accepter_id: str = None, accepter_username: str = None) -> bool:
     """
     Send a notification when someone accepts your follow request.

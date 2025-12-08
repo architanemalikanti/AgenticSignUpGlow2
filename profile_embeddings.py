@@ -97,25 +97,26 @@ def generate_ai_groups(user_id: str) -> list:
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = f"""Generate 5 diverse, interesting group descriptions for finding similar people.
+        prompt = f"""Generate 5 diverse, funny group descriptions for finding similar people.
 
 The user is: {user_gender}, lives in {user_city}, occupation: {user_occupation}
 
-Create 5 different search phrases to find people similar to them. Use variations like:
-- "other [occupation] in [city]"
-- "[gender] [occupation]s in [city] who [interest]"
-- "[city] [occupation]s exploring [interest]"
-- "[gender]s in [city] into [interest]"
+Create 5 different search phrases to find people similar to them. Make them witty, playful, and a bit irreverent.
+Use variations like:
+- "other [occupation] in [city] surviving on [something funny]"
+- "[gender] [occupation]s in [city] who [quirky trait]"
+- "[city] [occupation]s pretending to have it together"
+- "[gender]s in [city] avoiding [something relatable]"
 
-Make them sound different each time - vary the structure and wording. Be natural and conversational.
-Each phrase should be 5-10 words.
+Each phrase should be 5-12 words. Be funny, relatable, and self-aware.
 
 Examples:
-- "other software engineers in sf"
-- "female founders in nyc into tech"
-- "sf tech people who love hiking"
-- "creative women in la"
-- "students in boston exploring startups"
+- "other students in sf surviving on iced coffee"
+- "girls in nyc pretending they can afford rent"
+- "sf tech bros who actually go outside"
+- "la creatives manifesting their next paycheck"
+- "students in boston romanticizing their stress"
+- "finance guys in nyc with zero work life balance"
 
 Return ONLY a JSON array of 5 strings, no other text.
 

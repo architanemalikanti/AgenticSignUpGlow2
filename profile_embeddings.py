@@ -47,10 +47,12 @@ def create_user_profile_embedding(user):
                 "metadata": {
                     "user_id": user.id,
                     "name": user.name,
+                    "username": user.username,
                     "city": user.city,
                     "occupation": user.occupation,
                     "gender": user.gender,
-                    "ethnicity": user.ethnicity
+                    "ethnicity": user.ethnicity,
+                    "profile_image": user.profile_image if user.profile_image else ""
                 }
             }]
         )
@@ -64,6 +66,7 @@ def create_user_profile_embedding(user):
 def generate_ai_groups(user_id: str) -> list:
     """
     Generate 5 AI-generated group descriptions for finding similar users.
+    Groups are personalized based on the user's profile.
 
     Args:
         user_id: The user requesting recommendations (for personalization)
@@ -72,21 +75,48 @@ def generate_ai_groups(user_id: str) -> list:
         List of 5 group description strings
     """
     from anthropic import Anthropic
+    from database.db import SessionLocal
+    from database.models import User
     import json
 
     try:
+        # Get user's profile to personalize recommendations
+        db = SessionLocal()
+        user = db.query(User).filter(User.id == user_id).first()
+        db.close()
+
+        if not user:
+            # Fallback if user not found
+            user_city = "the city"
+            user_occupation = "students"
+            user_gender = "people"
+        else:
+            user_city = user.city or "the city"
+            user_occupation = user.occupation or "students"
+            user_gender = user.gender or "people"
+
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """Generate 5 diverse, interesting group descriptions for finding similar people.
-Each description should be a short phrase (5-10 words) describing a type of person.
+        prompt = f"""Generate 5 diverse, interesting group descriptions for finding similar people.
+
+The user is: {user_gender}, lives in {user_city}, occupation: {user_occupation}
+
+Create 5 different search phrases to find people similar to them. Use variations like:
+- "other [occupation] in [city]"
+- "[gender] [occupation]s in [city] who [interest]"
+- "[city] [occupation]s exploring [interest]"
+- "[gender]s in [city] into [interest]"
+
+Make them sound different each time - vary the structure and wording. Be natural and conversational.
+Each phrase should be 5-10 words.
 
 Examples:
-- "college students in NYC into fashion"
-- "tech workers in SF who love hiking"
-- "artists in LA exploring creativity"
-- "finance people in NYC with travel bug"
+- "other software engineers in sf"
+- "female founders in nyc into tech"
+- "sf tech people who love hiking"
+- "creative women in la"
+- "students in boston exploring startups"
 
-Make them diverse, interesting, and representative of different lifestyles/interests.
 Return ONLY a JSON array of 5 strings, no other text.
 
 Format: ["description 1", "description 2", "description 3", "description 4", "description 5"]"""
@@ -165,6 +195,7 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
                 "occupation": user_data.get("occupation"),
                 "gender": user_data.get("gender"),
                 "ethnicity": user_data.get("ethnicity"),
+                "profile_image": user_data.get("profile_image", ""),
                 "similarity_score": match['score']
             })
 

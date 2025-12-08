@@ -97,28 +97,33 @@ def generate_ai_groups(user_id: str) -> list:
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = f"""Generate 5 diverse, funny group descriptions for finding similar people.
+        prompt = f"""Generate 5 group descriptions. Each has TWO lines (first line + shorter second line).
 
 The user is: {user_gender}, lives in {user_city}, occupation: {user_occupation}
 
-IMPORTANT FORMAT:
-- First description: Single line only (5-10 words)
-- Descriptions 2-5: Two lines each - main line + shorter sassy line in parentheses
+CRITICAL: Each description must have a DIFFERENT vibe. Assign each one a specific tone:
+1. CHAOTIC energy
+2. BITCHY-CUTE
+3. UNHINGED
+4. DRY HUMOR
+5. VILLAIN ARC
 
-Make them witty, playful, and a bit irreverent.
+FORMAT - always two lines:
+- Line 1: main description (5-10 words)
+- Line 2: shorter (3-5 words) - can be (parenthetical) or just continue
 
-Examples:
-1. "other students in sf surviving on iced coffee"
-2. "cornellians who thought sf was gonna be the goat city. (nyc > sf fight me)"
-3. "sf girls pretending they have it together. (we don't)"
-4. "students romanticizing their quarter life crisis. (it's not a vibe)"
-5. "tech people who actually touch grass sometimes. (shocking i know)"
+Examples showing DIFFERENT vibes:
+1. CHAOTIC: "students in sf running on 3 hours of sleep. it's fine we're fine"
+2. BITCHY-CUTE: "girls pretending the mission isn't scary. (we're delusional)"
+3. UNHINGED: "people who thought they could afford sf. comedy gold honestly"
+4. DRY HUMOR: "tech workers touching grass occasionally. groundbreaking"
+5. VILLAIN ARC: "students entering their evil era in the bay. no one's stopping us"
 
-The second line should be shorter (3-5 words) and add a sassy/funny commentary in parentheses.
+Make sure each one SOUNDS different - chaotic vs bitchy vs unhinged vs dry vs villain. Don't repeat the same energy.
 
 Return ONLY a JSON array of 5 strings, no other text.
 
-Format: ["description 1", "description 2. (sassy comment)", "description 3. (sassy comment)", ...]"""
+Format: ["description 1", "description 2", ...]"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

@@ -160,13 +160,14 @@ Format: ["description 1", "description 2", "description 3", "description 4", "de
 def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
     """
     Find users matching an AI-generated description using semantic search.
+    Includes each user's most recent post.
 
     Args:
         description: AI-generated group description (e.g., "college students in NYC into fashion")
         top_k: Number of users to return (default 5)
 
     Returns:
-        List of user dicts with profile info
+        List of user dicts with profile info and most recent post
     """
     try:
         # Step 1: Convert description to embedding
@@ -183,12 +184,39 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
             include_metadata=True
         )
 
-        # Step 3: Format results
+        # Step 3: Format results with most recent post
+        from database.db import SessionLocal
+        from database.models import Post, PostMedia
+        from sqlalchemy import desc
+
+        db = SessionLocal()
         matched_users = []
+
         for match in results['matches']:
             user_data = match['metadata']
+            user_id = user_data.get("user_id")
+
+            # Get most recent post for this user
+            most_recent_post = None
+            post = db.query(Post).filter(
+                Post.user_id == user_id
+            ).order_by(desc(Post.created_at)).first()
+
+            if post:
+                # Get media for this post
+                media_urls = [m.media_url for m in post.media]
+
+                most_recent_post = {
+                    "post_id": post.id,
+                    "title": post.title,
+                    "caption": post.caption,
+                    "location": post.location,
+                    "media_urls": media_urls,
+                    "created_at": post.created_at.isoformat() if post.created_at else None
+                }
+
             matched_users.append({
-                "user_id": user_data.get("user_id"),
+                "user_id": user_id,
                 "name": user_data.get("name"),
                 "username": user_data.get("username", ""),
                 "city": user_data.get("city"),
@@ -196,9 +224,11 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
                 "gender": user_data.get("gender"),
                 "ethnicity": user_data.get("ethnicity"),
                 "profile_image": user_data.get("profile_image", ""),
-                "similarity_score": match['score']
+                "similarity_score": match['score'],
+                "most_recent_post": most_recent_post
             })
 
+        db.close()
         return matched_users
 
     except Exception as e:

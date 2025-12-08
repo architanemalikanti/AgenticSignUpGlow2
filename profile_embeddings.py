@@ -101,26 +101,24 @@ def generate_ai_groups(user_id: str) -> list:
 
 The user is: {user_gender}, lives in {user_city}, occupation: {user_occupation}
 
-Create 5 different search phrases to find people similar to them. Make them witty, playful, and a bit irreverent.
-Use variations like:
-- "other [occupation] in [city] surviving on [something funny]"
-- "[gender] [occupation]s in [city] who [quirky trait]"
-- "[city] [occupation]s pretending to have it together"
-- "[gender]s in [city] avoiding [something relatable]"
+IMPORTANT FORMAT:
+- First description: Single line only (5-10 words)
+- Descriptions 2-5: Two lines each - main line + shorter sassy line in parentheses
 
-Each phrase should be 5-12 words. Be funny, relatable, and self-aware.
+Make them witty, playful, and a bit irreverent.
 
 Examples:
-- "other students in sf surviving on iced coffee"
-- "girls in nyc pretending they can afford rent"
-- "sf tech bros who actually go outside"
-- "la creatives manifesting their next paycheck"
-- "students in boston romanticizing their stress"
-- "finance guys in nyc with zero work life balance"
+1. "other students in sf surviving on iced coffee"
+2. "cornellians who thought sf was gonna be the goat city. (nyc > sf fight me)"
+3. "sf girls pretending they have it together. (we don't)"
+4. "students romanticizing their quarter life crisis. (it's not a vibe)"
+5. "tech people who actually touch grass sometimes. (shocking i know)"
+
+The second line should be shorter (3-5 words) and add a sassy/funny commentary in parentheses.
 
 Return ONLY a JSON array of 5 strings, no other text.
 
-Format: ["description 1", "description 2", "description 3", "description 4", "description 5"]"""
+Format: ["description 1", "description 2. (sassy comment)", "description 3. (sassy comment)", ...]"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

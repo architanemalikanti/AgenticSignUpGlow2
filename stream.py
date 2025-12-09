@@ -907,6 +907,37 @@ async def like_post(post_id: str, request: LikeRequest):
 
         logger.info(f"✅ User {user_id} liked post {post_id}")
 
+        # Send notification to post owner
+        post_owner = db.query(User).filter(User.id == post.user_id).first()
+        liker = db.query(User).filter(User.id == user_id).first()
+
+        if post_owner and post_owner.device_token and liker and post_owner.id != user_id:
+            # Check follow relationship
+            i_follow_them = db.query(Follow).filter(
+                Follow.follower_id == post.user_id,
+                Follow.following_id == user_id
+            ).first() is not None
+
+            they_follow_me = db.query(Follow).filter(
+                Follow.follower_id == user_id,
+                Follow.following_id == post.user_id
+            ).first() is not None
+
+            # Generate notification message
+            from push_notifications import send_like_notification
+            await send_like_notification(
+                device_token=post_owner.device_token,
+                liker_name=liker.name,
+                liker_username=liker.username,
+                liker_id=liker.id,
+                liker_city=liker.city,
+                liker_occupation=liker.occupation,
+                post_id=post_id,
+                post_title=post.title,
+                i_follow_them=i_follow_them,
+                they_follow_me=they_follow_me
+            )
+
         return {
             "status": "success",
             "message": "Post liked",

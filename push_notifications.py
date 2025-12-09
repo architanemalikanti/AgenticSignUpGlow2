@@ -334,3 +334,100 @@ async def send_post_notification(device_token: str, post_title: str, post_captio
         badge=1,
         data=notification_data
     )
+
+
+async def send_like_notification(
+    device_token: str,
+    liker_name: str,
+    liker_username: str,
+    liker_id: str,
+    liker_city: str,
+    liker_occupation: str,
+    post_id: str,
+    post_title: str,
+    i_follow_them: bool,
+    they_follow_me: bool
+) -> bool:
+    """
+    Send a notification when someone likes your post.
+    Message depends on follow relationship.
+
+    Args:
+        device_token: Device token of post owner
+        liker_name: Name of person who liked
+        liker_username: Username of liker
+        liker_id: ID of liker
+        liker_city: City of liker
+        liker_occupation: Occupation of liker
+        post_id: ID of the post that was liked
+        post_title: Title of the post
+        i_follow_them: Does the post owner follow the liker?
+        they_follow_me: Does the liker follow the post owner?
+
+    Returns:
+        True if notification sent successfully
+    """
+    from anthropic import Anthropic
+    import random
+
+    # Determine notification message based on follow relationship
+    if i_follow_them or they_follow_me:
+        # Simple notification - they're connected
+        emojis = ["💗", "✨", "🤍", "💫", "🌸", "💕"]
+        emoji = random.choice(emojis)
+        notification_title = f"{liker_name} liked ur post {emoji}"
+        notification_body = post_title if post_title else ""
+    else:
+        # They're NOT connected - explain how they found you
+        try:
+            client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+            prompt = f"""Generate a short, casual explanation of how someone discovered a post.
+
+The liker: {liker_name}
+Their city: {liker_city}
+Their occupation: {liker_occupation}
+
+Create a SHORT (5-8 words) third-person description explaining the connection.
+Use lowercase, casual vibe. Format: "she's another [description]" or "he's another [description]"
+
+Examples:
+- "she's another sf girly in tech/startups"
+- "he's another nyc student exploring finance"
+- "she's another la creative hustling"
+- "he's another boston student romanticizing stress"
+
+Return ONLY the description, no quotes or extra text."""
+
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=50,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            connection_text = response.content[0].text.strip().strip('"\'')
+
+            notification_title = f"{liker_name} liked ur post"
+            notification_body = connection_text
+
+        except Exception as e:
+            logger.error(f"❌ Error generating connection text: {e}")
+            # Fallback
+            notification_title = f"{liker_name} liked ur post"
+            notification_body = f"another {liker_occupation} in {liker_city}"
+
+    notification_data = {
+        "type": "post_like",
+        "liker_id": liker_id,
+        "liker_name": liker_name,
+        "liker_username": liker_username,
+        "post_id": post_id
+    }
+
+    return await send_push_notification(
+        device_token=device_token,
+        title=notification_title,
+        body=notification_body,
+        badge=1,
+        data=notification_data
+    )

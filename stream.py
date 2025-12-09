@@ -807,31 +807,80 @@ async def stream_ai_recommendations(user_id: str):
     """
     async def event_generator():
         try:
-            from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+            from profile_embeddings import find_users_from_ai_description
+            from anthropic import Anthropic
+            from database.db import SessionLocal
+            from database.models import User
             import json
+            import asyncio
+            import os
 
-            # Send loading event IMMEDIATELY
-            yield f"event: loading\ndata: {json.dumps({'status': 'generating'})}\n\n"
+            # Get user profile for personalization
+            db = SessionLocal()
+            user = db.query(User).filter(User.id == user_id).first()
+            db.close()
 
-            # Generate 1 AI group description
-            logger.info(f"🤖 Generating AI group for user {user_id}")
-            all_descriptions = generate_ai_groups(user_id)
-            description = all_descriptions[0]  # Take first one
+            if not user:
+                user_city = "the city"
+                user_occupation = "students"
+                user_gender = "people"
+            else:
+                user_city = user.city or "the city"
+                user_occupation = user.occupation or "students"
+                user_gender = user.gender or "people"
 
-            # Send the AI sentence as soon as it's ready
+            # Stream AI sentence generation
+            client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+            prompt = f"""Generate 5 diverse, funny group descriptions for finding similar people.
+
+The user is: {user_gender}, lives in {user_city}, occupation: {user_occupation}
+
+CRITICAL: Each description must have a DIFFERENT vibe. Assign each one a specific tone:
+1. CHAOTIC energy
+2. BITCHY-CUTE
+3. UNHINGED
+4. DRY HUMOR
+5. VILLAIN ARC
+
+FORMAT - always two lines:
+- Line 1: main description (5-10 words)
+- Line 2: shorter (3-5 words) - can be (parenthetical) or just continue
+
+Return ONLY a JSON array of 5 strings, no other text."""
+
+            # Stream the AI response
+            full_response = ""
+            async with client.messages.stream(
+                model="claude-sonnet-4-20250514",
+                max_tokens=300,
+                messages=[{"role": "user", "content": prompt}]
+            ) as stream:
+                async for text in stream.text_stream:
+                    full_response += text
+                    # Stream chunks as they arrive
+                    yield f"event: ai_chunk\ndata: {json.dumps({'text': text})}\n\n"
+
+            # Parse the complete response
+            if "[" in full_response:
+                start = full_response.find("[")
+                end = full_response.rfind("]") + 1
+                json_str = full_response[start:end]
+                descriptions = json.loads(json_str)
+                description = descriptions[0]
+            else:
+                description = "other people in your city"
+
+            # Signal AI sentence is complete
             yield f"event: group_start\ndata: {json.dumps({'description': description})}\n\n"
 
-            # Find users and stream them one by one
-            logger.info(f"🔍 Streaming users for: {description}")
-
-            # Get matched users
+            # Now find and stream users
+            logger.info(f"🔍 Finding users for: {description}")
             matched_users = find_users_from_ai_description(description, top_k=5)
 
-            # Stream each user as we find them
-            for user in matched_users:
-                yield f"event: user\ndata: {json.dumps(user)}\n\n"
+            for user_data in matched_users:
+                yield f"event: user\ndata: {json.dumps(user_data)}\n\n"
 
-            # Signal group is complete
             yield f"event: group_complete\ndata: {json.dumps({'description': description})}\n\n"
 
         except Exception as e:

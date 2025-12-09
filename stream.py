@@ -852,8 +852,12 @@ async def get_ai_recommendations(user_id: str):
         }
 
 
+class LikeRequest(BaseModel):
+    user_id: str
+
+
 @app.post("/posts/{post_id}/like")
-async def like_post(post_id: str, user_id: str):
+async def like_post(post_id: str, request: LikeRequest):
     """
     Like a post.
 
@@ -867,6 +871,7 @@ async def like_post(post_id: str, user_id: str):
     """
     from database.models import Post, Like
 
+    user_id = request.user_id
     db = SessionLocal()
     try:
         # Check if post exists

@@ -795,12 +795,16 @@ async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
 
 
 @app.get("/feed/recommendations/{user_id}")
-async def get_ai_recommendations(user_id: str):
+async def get_ai_recommendations(user_id: str, count: int = 1):
     """
     Get AI-generated user recommendations based on semantic similarity.
+    Returns one group at a time for infinite scroll.
+
+    Query params:
+    - count: Number of groups to return (default 1)
 
     Workflow:
-    1. Generate 5 AI group descriptions (e.g., "college students in NYC into fashion")
+    1. Generate AI group descriptions (e.g., "college students in NYC into fashion")
     2. For each description, find top 5 similar users from Pinecone
     3. Return groups with their matched users
 
@@ -814,17 +818,22 @@ async def get_ai_recommendations(user_id: str):
                         {"user_id": "...", "name": "...", "username": "...", ...},
                         ...
                     ]
-                },
-                ...
+                }
             ]
         }
     """
     try:
         from profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
-        # Step 1: Generate 5 AI group descriptions
-        logger.info(f"🤖 Generating AI groups for user {user_id}")
-        group_descriptions = generate_ai_groups(user_id)
+        # Limit count to max 5
+        count = min(count, 5)
+
+        # Step 1: Generate AI group descriptions
+        logger.info(f"🤖 Generating {count} AI group(s) for user {user_id}")
+        all_descriptions = generate_ai_groups(user_id)
+
+        # Take only the requested number of groups
+        group_descriptions = all_descriptions[:count]
 
         # Step 2: For each description, find matching users
         groups = []
@@ -837,7 +846,7 @@ async def get_ai_recommendations(user_id: str):
                 "users": matched_users
             })
 
-        logger.info(f"✅ Generated {len(groups)} recommendation groups for user {user_id}")
+        logger.info(f"✅ Generated {len(groups)} recommendation group(s) for user {user_id}")
 
         return {
             "status": "success",

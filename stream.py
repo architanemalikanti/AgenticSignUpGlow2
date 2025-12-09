@@ -794,6 +794,50 @@ async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
         }
 
 
+@app.get("/feed/recommendations/{user_id}/stream")
+async def stream_ai_recommendations(user_id: str):
+    """
+    Stream AI-generated recommendations one group at a time.
+    Returns Server-Sent Events (SSE) for progressive loading.
+
+    Events:
+    - group_start: AI sentence generated
+    - user: Each user found
+    - group_complete: Group finished
+    """
+    async def event_generator():
+        try:
+            from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+            import json
+
+            # Generate 1 AI group description
+            logger.info(f"🤖 Generating AI group for user {user_id}")
+            all_descriptions = generate_ai_groups(user_id)
+            description = all_descriptions[0]  # Take first one
+
+            # Send the AI sentence immediately
+            yield f"event: group_start\ndata: {json.dumps({'description': description})}\n\n"
+
+            # Find users and stream them one by one
+            logger.info(f"🔍 Streaming users for: {description}")
+
+            # Get matched users
+            matched_users = find_users_from_ai_description(description, top_k=5)
+
+            # Stream each user as we find them
+            for user in matched_users:
+                yield f"event: user\ndata: {json.dumps(user)}\n\n"
+
+            # Signal group is complete
+            yield f"event: group_complete\ndata: {json.dumps({'description': description})}\n\n"
+
+        except Exception as e:
+            logger.error(f"❌ Error streaming recommendations: {e}")
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @app.get("/feed/recommendations/{user_id}")
 async def get_ai_recommendations(user_id: str, count: int = 1):
     """

@@ -156,3 +156,17 @@ class PostMedia(Base):
     # Relationship back to Post
     post = relationship("Post", back_populates="media")
 
+
+class Like(Base):
+    __tablename__ = 'likes'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign keys
+    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who liked
+    post_id = Column(String(36), ForeignKey('posts.id'), nullable=False)  # Post that was liked
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+

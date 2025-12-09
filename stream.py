@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Notification
+from database.models import User, Design, Follow, FollowRequest, Notification, Like
 from agent import Agent
 from prompt_manager import set_prompt
 from redis_client import r
@@ -850,6 +850,168 @@ async def get_ai_recommendations(user_id: str):
             "status": "error",
             "error": str(e)
         }
+
+
+@app.post("/posts/{post_id}/like")
+async def like_post(post_id: str, user_id: str):
+    """
+    Like a post.
+
+    Request body:
+    {
+        "user_id": "user-id-here"
+    }
+
+    Returns:
+        Success status and like count
+    """
+    from database.models import Post, Like
+
+    db = SessionLocal()
+    try:
+        # Check if post exists
+        post = db.query(Post).filter(Post.id == post_id).first()
+        if not post:
+            return {
+                "status": "error",
+                "message": "Post not found"
+            }
+
+        # Check if already liked
+        existing_like = db.query(Like).filter(
+            Like.user_id == user_id,
+            Like.post_id == post_id
+        ).first()
+
+        if existing_like:
+            return {
+                "status": "error",
+                "message": "Post already liked"
+            }
+
+        # Create like
+        new_like = Like(
+            user_id=user_id,
+            post_id=post_id
+        )
+        db.add(new_like)
+        db.commit()
+
+        # Get like count
+        like_count = db.query(Like).filter(Like.post_id == post_id).count()
+
+        logger.info(f"✅ User {user_id} liked post {post_id}")
+
+        return {
+            "status": "success",
+            "message": "Post liked",
+            "like_count": like_count
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error liking post: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+
+@app.delete("/posts/{post_id}/unlike")
+async def unlike_post(post_id: str, user_id: str):
+    """
+    Unlike a post.
+
+    Query params:
+    - user_id: ID of the user unliking
+
+    Returns:
+        Success status and like count
+    """
+    from database.models import Like
+
+    db = SessionLocal()
+    try:
+        # Find and delete the like
+        like = db.query(Like).filter(
+            Like.user_id == user_id,
+            Like.post_id == post_id
+        ).first()
+
+        if not like:
+            return {
+                "status": "error",
+                "message": "Like not found"
+            }
+
+        db.delete(like)
+        db.commit()
+
+        # Get updated like count
+        like_count = db.query(Like).filter(Like.post_id == post_id).count()
+
+        logger.info(f"✅ User {user_id} unliked post {post_id}")
+
+        return {
+            "status": "success",
+            "message": "Post unliked",
+            "like_count": like_count
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error unliking post: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+
+@app.get("/posts/{post_id}/likes")
+async def get_post_likes(post_id: str, user_id: Optional[str] = None):
+    """
+    Get like count for a post and optionally check if a user has liked it.
+
+    Query params:
+    - user_id (optional): Check if this user has liked the post
+
+    Returns:
+        Like count and liked status
+    """
+    from database.models import Like
+
+    db = SessionLocal()
+    try:
+        # Get like count
+        like_count = db.query(Like).filter(Like.post_id == post_id).count()
+
+        # Check if user has liked (if user_id provided)
+        liked_by_user = False
+        if user_id:
+            liked_by_user = db.query(Like).filter(
+                Like.user_id == user_id,
+                Like.post_id == post_id
+            ).first() is not None
+
+        return {
+            "status": "success",
+            "post_id": post_id,
+            "like_count": like_count,
+            "liked_by_user": liked_by_user
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error getting likes: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
 
 
 @app.get("/posts/user/{user_id}")

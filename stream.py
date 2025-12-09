@@ -810,12 +810,15 @@ async def stream_ai_recommendations(user_id: str):
             from profile_embeddings import generate_ai_groups, find_users_from_ai_description
             import json
 
+            # Send loading event IMMEDIATELY
+            yield f"event: loading\ndata: {json.dumps({'status': 'generating'})}\n\n"
+
             # Generate 1 AI group description
             logger.info(f"🤖 Generating AI group for user {user_id}")
             all_descriptions = generate_ai_groups(user_id)
             description = all_descriptions[0]  # Take first one
 
-            # Send the AI sentence immediately
+            # Send the AI sentence as soon as it's ready
             yield f"event: group_start\ndata: {json.dumps({'description': description})}\n\n"
 
             # Find users and stream them one by one

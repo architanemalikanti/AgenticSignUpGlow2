@@ -1105,17 +1105,54 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """You are a creative writer. Write a short, witty 2-line description of someone's vibe.
+        prompt = """Given a user with the following attributes:
 
-Person: female student in SF studying computer science
+Name: Archita
 
-Format:
-Line 1: main vibe (5-10 words)
-Line 2: shorter continuation (3-5 words)
+Gender: female
 
-Example: "sf girly coding at 3am fueled by iced lattes. the burnout is real"
+Ethnicity: south asian
 
-Write ONLY the 2-line description, nothing else."""
+Occupation: startup founder
+
+City: SF
+
+Generate 15–20 people/content recommendations based on ALL logically connected aspects of their identity.
+
+You MUST:
+
+Infer secondary categories based on the user’s attributes
+
+If the user is in SF → recommend Stanford/Berkeley students, angel investors, startup founders, SF engineers, matcha girlies, etc.
+
+If the user is female → recommend female founders, girlies in wellness eras, female investors, other women in similar industries.
+
+If the user is South Asian → recommend brown girl CEOs, shaadi content, cultural groups, aunties, etc.
+
+If the user is a founder → recommend engineers, VCs, designers, operators, PMs, other founders, investor pipelines.
+
+If the user is young → recommend college interns, early-career communities.
+
+If the user is dating age → include dating-coded recs.
+
+Recommend people even if the user is not in that category
+
+Correct: “other brown girl CEOs” even if the user is white (if it logically fits the ecosystem)
+
+Correct: “investment banking girlies” even if the user is not in finance (if city = NYC)
+
+Correct: “angel investors” even if the user didn’t mention fundraising
+
+Correct: “college girlies” if city = SF or NYC because ecosystem.
+
+Use this exact output format:
+
+[first line: the category of people/content]
+[second line: the cute/chaotic/sweet commentary]
+
+Keep it unhinged, bitchy (but never mean), lowercase letters, playful, but never mean and always respectful.
+
+Make all recs feel personalized based on the attributes + inferred lifestyle"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

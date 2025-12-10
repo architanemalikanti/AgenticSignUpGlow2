@@ -834,7 +834,7 @@ async def stream_ai_recommendations(user_id: str):
 
             prompt = f"""Generate 5 diverse, funny group descriptions for finding similar people.
 
-The user is: {user_gender}, lives in {user_city}, occupation: {user_occupation}
+The user is: {user_gender}, lives in {user_city}, occupation: {user_occupation}.
 
 CRITICAL: Each description must have a DIFFERENT vibe. Assign each one a specific tone:
 1. CHAOTIC energy
@@ -1105,54 +1105,24 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """Given a user with the following attributes:
+        prompt = """Generate 5 diverse, funny group descriptions for finding similar people.
 
-Name: Archita
+The user is: female, lives in sf, occupation: startup founder, ethnicity: south asian
 
-Gender: female
+CRITICAL: Each description must have a DIFFERENT vibe. Assign each one a specific tone:
+1. CHAOTIC energy
+2. BITCHY-CUTE
+3. UNHINGED
+4. DRY HUMOR
+5. VILLAIN ARC
 
-Ethnicity: south asian
+Be respectul and never mean.
 
-Occupation: startup founder
+FORMAT - always two lines:
+- Line 1: main description (5-10 words)
+- Line 2: shorter (3-5 words) - can be (parenthetical) or just continue
 
-City: SF
-
-Generate 15–20 people/content recommendations based on ALL logically connected aspects of their identity.
-
-You MUST:
-
-Infer secondary categories based on the user’s attributes
-
-If the user is in SF → recommend Stanford/Berkeley students, angel investors, startup founders, SF engineers, matcha girlies, etc.
-
-If the user is female → recommend female founders, girlies in wellness eras, female investors, other women in similar industries.
-
-If the user is South Asian → recommend brown girl CEOs, shaadi content, cultural groups, aunties, etc.
-
-If the user is a founder → recommend engineers, VCs, designers, operators, PMs, other founders, investor pipelines.
-
-If the user is young → recommend college interns, early-career communities.
-
-If the user is dating age → include dating-coded recs.
-
-Recommend people even if the user is not in that category
-
-Correct: “other brown girl CEOs” even if the user is white (if it logically fits the ecosystem)
-
-Correct: “investment banking girlies” even if the user is not in finance (if city = NYC)
-
-Correct: “angel investors” even if the user didn’t mention fundraising
-
-Correct: “college girlies” if city = SF or NYC because ecosystem.
-
-Use this exact output format:
-
-[first line: the category of people/content]
-[second line: the cute/chaotic/sweet commentary]
-
-Keep it unhinged, bitchy (but never mean), lowercase letters, playful, but never mean and always respectful.
-
-Make all recs feel personalized based on the attributes + inferred lifestyle"""
+Return ONLY a JSON array of 5 strings, no other text."""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

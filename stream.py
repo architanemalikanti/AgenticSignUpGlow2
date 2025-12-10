@@ -978,15 +978,19 @@ async def prefetch_feed(user_id: str, background_tasks: BackgroundTasks):
                     logger.error(f"❌ No groups generated for user {user_id}")
                     return
 
-                next_group = groups[0]
+                next_description = groups[0]  # This is a string
 
                 # Find matching users
                 matched_users = find_users_from_ai_description(
-                    next_group['description'],
+                    next_description,
                     top_k=5
                 )
 
-                next_group['users'] = matched_users
+                # Build the group object
+                next_group = {
+                    "description": next_description,
+                    "users": matched_users
+                }
 
                 # Store in Redis with feed:{user_id} key
                 feed_key = f"feed:{user_id}"

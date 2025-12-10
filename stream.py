@@ -1105,41 +1105,43 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """Generate 5 funny group descriptions based on this user:
+        prompt = """Using the categories below, generate 8 group recommendations for this user:
 
-Gender: female,
-City: SF,
-Occupation: startup founder,
-Ethnicity: south asian.
+Categories:
 
-IMPORTANT:
-You MUST infer ALL logically connected ecosystems from these attributes.
-Examples of inferences:
+dating
 
-If city = SF → include Stanford, Berkeley, angel investors, startup founders, engineers, SF lifestyle.
+careers
 
-If ethnicity = South Asian → include shaadi szn, aunties, brown girl CEOs, wholesome brown men.
+san francisco (colleges, angels, startup culture)
 
-If gender = female → include girlies, female founders, female investors, dating, wellness.
+ethnicity/culture
 
-If occupation = founder → include VCs, angels, engineers, pitch nights, builders.
+wellness/friendship
 
-Use ANY lane that makes sense: dating, career, founders, college kids, finance girlies, culture, wellness, etc.
+chaotic wildcard
 
-Tones (one each):
-1 chaotic
-1 bitchy-cute
-1 unhinged
-1 dry
-1 villain arc
+User attributes:
+Gender: female
+City: SF
+Occupation: startup founder
+Ethnicity: south asian
 
-FORMAT for each item (string):
-Line 1: 5–10 words
-Line 2: 3–5 words, short.
+RULES:
 
-be sure to write in lowercase letters / gen z.
+Pull from ALL categories (not just ones matching the user)
 
-Return ONLY a JSON array of 5 strings"""
+Use her attributes to add twists (brown men, dosa boys, shaadi, Stanford, Berkeley, angels, founders, girlies, etc.)
+
+Must be cute, funny, aesthetic, lowercase, glow-coded.
+
+Never mean, never dark-chaotic.
+
+FORMAT:
+line 1: group description (5–10 words)
+line 2: short playful tag (3–5 words)
+
+Return as a JSON array of strings"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

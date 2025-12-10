@@ -1105,24 +1105,41 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """Generate 5 diverse, funny group descriptions for finding similar people.
+        prompt = """Generate 5 funny group descriptions based on this user:
 
-The user is: female, lives in sf, occupation: startup founder, ethnicity: south asian
+Gender: female,
+City: SF,
+Occupation: startup founder,
+Ethnicity: south asian.
 
-CRITICAL: Each description must have a DIFFERENT vibe. Assign each one a specific tone:
-1. CHAOTIC energy
-2. BITCHY-CUTE
-3. UNHINGED
-4. DRY HUMOR
-5. VILLAIN ARC
+IMPORTANT:
+You MUST infer ALL logically connected ecosystems from these attributes.
+Examples of inferences:
 
-Be respectul and never mean.
+If city = SF → include Stanford, Berkeley, angel investors, startup founders, engineers, SF lifestyle.
 
-FORMAT - always two lines:
-- Line 1: main description (5-10 words)
-- Line 2: shorter (3-5 words) - can be (parenthetical) or just continue
+If ethnicity = South Asian → include shaadi szn, aunties, brown girl CEOs, wholesome brown men.
 
-Return ONLY a JSON array of 5 strings, no other text."""
+If gender = female → include girlies, female founders, female investors, dating, wellness.
+
+If occupation = founder → include VCs, angels, engineers, pitch nights, builders.
+
+Use ANY lane that makes sense: dating, career, founders, college kids, finance girlies, culture, wellness, etc.
+
+Tones (one each):
+1 chaotic
+1 bitchy-cute
+1 unhinged
+1 dry
+1 villain arc
+
+FORMAT for each item (string):
+Line 1: 5–10 words
+Line 2: 3–5 words, short.
+
+be sure to write in lowercase letters / gen z.
+
+Return ONLY a JSON array of 5 strings"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

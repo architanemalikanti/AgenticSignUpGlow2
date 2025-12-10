@@ -1095,6 +1095,51 @@ async def get_cached_feed(user_id: str):
         }
 
 
+@app.get("/test/prompt")
+async def test_anthropic_prompt():
+    """
+    Test route for prompt engineering with Anthropic.
+    """
+    try:
+        from anthropic import Anthropic
+
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+        prompt = """You are a creative writer. Write a short, witty 2-line description of someone's vibe.
+
+Person: female student in SF studying computer science
+
+Format:
+Line 1: main vibe (5-10 words)
+Line 2: shorter continuation (3-5 words)
+
+Example: "sf girly coding at 3am fueled by iced lattes. the burnout is real"
+
+Write ONLY the 2-line description, nothing else."""
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=100,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        result = response.content[0].text.strip()
+
+        return {
+            "status": "success",
+            "prompt": prompt,
+            "response": result,
+            "model": "claude-sonnet-4-20250514"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error testing prompt: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 class LikeRequest(BaseModel):
     user_id: str
 

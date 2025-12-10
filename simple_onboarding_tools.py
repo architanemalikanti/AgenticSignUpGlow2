@@ -249,29 +249,14 @@ def finalize_simple_signup(session_id: str) -> str:
             access_token = create_access_token(user_id)
             refresh_token = create_refresh_token(user_id)
 
-            # Store user_id, tokens, and profile_image (if female) in Redis
-            session_data['user_id'] = user_id
-            session_data['access_token'] = access_token
-            session_data['refresh_token'] = refresh_token
-            session_data['feed_ready'] = False  # Feed not generated yet
-            if profile_image_url:
-                session_data['profile_image'] = profile_image_url  # Add avatar URL for iOS!
-            r.set(redis_key, json.dumps(session_data))
-
-            # Start background task to generate first feed group
-            import asyncio
+            # Generate first feed group synchronously
+            logger.info(f"🔄 Generating first feed for user {user_id}")
             from profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
-            async def generate_first_feed():
-                try:
-                    logger.info(f"🔄 Starting background feed generation for user {user_id}")
-
-                    # Generate first AI group description
-                    groups = generate_ai_groups(user_id)
-                    if not groups or len(groups) == 0:
-                        logger.error(f"❌ No groups generated for user {user_id}")
-                        return
-
+            try:
+                # Generate first AI group description
+                groups = generate_ai_groups(user_id)
+                if groups and len(groups) > 0:
                     first_group = groups[0]
 
                     # Find users matching this description
@@ -282,21 +267,38 @@ def finalize_simple_signup(session_id: str) -> str:
 
                     first_group['users'] = matched_users
 
-                    # Update Redis with generated feed
-                    redis_key = f"session:{session_id}"
-                    session_str = r.get(redis_key)
-                    if session_str:
-                        session_data = json.loads(session_str)
-                        session_data['feed_ready'] = True
-                        session_data['first_group'] = first_group
-                        r.set(redis_key, json.dumps(session_data))
-                        logger.info(f"✅ First feed group cached for user {user_id}")
+                    # Store everything in Redis
+                    session_data['user_id'] = user_id
+                    session_data['access_token'] = access_token
+                    session_data['refresh_token'] = refresh_token
+                    session_data['feed_ready'] = True
+                    session_data['first_group'] = first_group
+                    if profile_image_url:
+                        session_data['profile_image'] = profile_image_url
 
-                except Exception as e:
-                    logger.error(f"❌ Error generating first feed for user {user_id}: {e}")
+                    logger.info(f"✅ First feed group generated for user {user_id}")
+                else:
+                    # No feed generated, store without feed
+                    session_data['user_id'] = user_id
+                    session_data['access_token'] = access_token
+                    session_data['refresh_token'] = refresh_token
+                    session_data['feed_ready'] = False
+                    if profile_image_url:
+                        session_data['profile_image'] = profile_image_url
+                    logger.warning(f"⚠️  No feed groups generated for user {user_id}")
 
-            # Run background task without blocking signup
-            asyncio.create_task(generate_first_feed())
+            except Exception as feed_error:
+                # If feed generation fails, still store user data
+                logger.error(f"❌ Error generating feed: {feed_error}")
+                session_data['user_id'] = user_id
+                session_data['access_token'] = access_token
+                session_data['refresh_token'] = refresh_token
+                session_data['feed_ready'] = False
+                if profile_image_url:
+                    session_data['profile_image'] = profile_image_url
+
+            # Save to Redis
+            r.set(redis_key, json.dumps(session_data))
 
             logger.info(f"✅ Created user {user_id} with username {signup_data['username']}")
             logger.info(f"🔑 Generated JWT tokens for user {user_id}")

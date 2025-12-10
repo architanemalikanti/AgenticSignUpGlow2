@@ -1105,21 +1105,41 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """Using the categories below, generate 8 group recommendations for this user:
+        prompt = """Using the categories below, generate 8 cute, funny, glow-coded group recommendations for this user.
 
-Categories:
+Categories + what each category can include:
 
-dating
+DATING:
+- men (brown boys, dosa boys, sf tech boys, stanford boys, berkeley boys, engineers, respectful kings)
+- twist based on ethnicity or city
 
-careers
+CAREERS:
+- brown girl CEOs, female founders, female angel investors
+- startup engineers, product girlies, ibanking girlies
+- vcs and angels relevant to SF
+- sf-based career energy
 
-san francisco (colleges, angels, startup culture)
+SAN FRANCISCO:
+- stanford girlies, berkeley girlies
+- sf founders, startup bros, engineers
+- angel investors, pre-seed girlies
+- philz, matcha, soma, mission bay
+- classic sf builder culture
 
-ethnicity/culture
+ETHNICITY / CULTURE:
+- shaadi szn, aunties, brown girl CEOs
+- mehendi, saree girlies, cultural creators
+- wholesome brown men
+- desi humor, south asian vibes
 
-wellness/friendship
+WELLNESS / FRIENDSHIP:
+- pilates princesses, matcha girlies
+- journaling girlies, soft-life friends
+- cute community vibes
 
-chaotic wildcard
+CHAOTIC WILDCARD:
+- funny but soft chaos behavior
+- no negativity, no dark humor
 
 User attributes:
 Gender: female
@@ -1128,20 +1148,17 @@ Occupation: startup founder
 Ethnicity: south asian
 
 RULES:
-
-Pull from ALL categories (not just ones matching the user)
-
-Use her attributes to add twists (brown men, dosa boys, shaadi, Stanford, Berkeley, angels, founders, girlies, etc.)
-
-Must be cute, funny, aesthetic, lowercase, glow-coded.
-
-Never mean, never dark-chaotic.
+- Pull from ALL categories, even if not matching occupation.
+- Use her attributes to add twists (brown girl CEOs, shaadi, dosa boys, stanford, berkeley, angels, founders, wellness girlies).
+- Must always feel aesthetic, lowercase, glow-coded, cute, funny.
+- Never mean or weird.
 
 FORMAT:
-line 1: group description (5–10 words)
-line 2: short playful tag (3–5 words)
+Line 1: group description (5–10 words)
+Line 2: playful tag (3–5 words)
 
-Return as a JSON array of strings"""
+Return ONLY a JSON array of 8 strings.
+"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

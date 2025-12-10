@@ -253,9 +253,50 @@ def finalize_simple_signup(session_id: str) -> str:
             session_data['user_id'] = user_id
             session_data['access_token'] = access_token
             session_data['refresh_token'] = refresh_token
+            session_data['feed_ready'] = False  # Feed not generated yet
             if profile_image_url:
                 session_data['profile_image'] = profile_image_url  # Add avatar URL for iOS!
             r.set(redis_key, json.dumps(session_data))
+
+            # Start background task to generate first feed group
+            import asyncio
+            from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+
+            async def generate_first_feed():
+                try:
+                    logger.info(f"🔄 Starting background feed generation for user {user_id}")
+
+                    # Generate first AI group description
+                    groups = generate_ai_groups(user_id)
+                    if not groups or len(groups) == 0:
+                        logger.error(f"❌ No groups generated for user {user_id}")
+                        return
+
+                    first_group = groups[0]
+
+                    # Find users matching this description
+                    matched_users = find_users_from_ai_description(
+                        first_group['description'],
+                        top_k=5
+                    )
+
+                    first_group['users'] = matched_users
+
+                    # Update Redis with generated feed
+                    redis_key = f"session:{session_id}"
+                    session_str = r.get(redis_key)
+                    if session_str:
+                        session_data = json.loads(session_str)
+                        session_data['feed_ready'] = True
+                        session_data['first_group'] = first_group
+                        r.set(redis_key, json.dumps(session_data))
+                        logger.info(f"✅ First feed group cached for user {user_id}")
+
+                except Exception as e:
+                    logger.error(f"❌ Error generating first feed for user {user_id}: {e}")
+
+            # Run background task without blocking signup
+            asyncio.create_task(generate_first_feed())
 
             logger.info(f"✅ Created user {user_id} with username {signup_data['username']}")
             logger.info(f"🔑 Generated JWT tokens for user {user_id}")

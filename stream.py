@@ -6,7 +6,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
@@ -951,6 +951,140 @@ async def get_ai_recommendations(user_id: str, count: int = 1):
 
     except Exception as e:
         logger.error(f"❌ Error generating recommendations: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.post("/feed/prefetch/{user_id}")
+async def prefetch_feed(user_id: str, background_tasks: BackgroundTasks):
+    """
+    Pre-fetch next feed group when user closes the app.
+    Generates one AI group and stores in Redis with feed:{user_id} key.
+
+    Called by iOS when app goes to background.
+    """
+    try:
+        from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+
+        async def generate_next_feed():
+            try:
+                logger.info(f"🔄 Pre-fetching next feed for user {user_id}")
+
+                # Generate AI group
+                groups = generate_ai_groups(user_id)
+                if not groups or len(groups) == 0:
+                    logger.error(f"❌ No groups generated for user {user_id}")
+                    return
+
+                next_group = groups[0]
+
+                # Find matching users
+                matched_users = find_users_from_ai_description(
+                    next_group['description'],
+                    top_k=5
+                )
+
+                next_group['users'] = matched_users
+
+                # Store in Redis with feed:{user_id} key
+                feed_key = f"feed:{user_id}"
+                r.set(feed_key, json.dumps(next_group), ex=3600)  # Expires in 1 hour
+
+                logger.info(f"✅ Pre-fetched feed cached for user {user_id}")
+
+            except Exception as e:
+                logger.error(f"❌ Error pre-fetching feed for user {user_id}: {e}")
+
+        # Start background task
+        background_tasks.add_task(generate_next_feed)
+
+        return {
+            "status": "success",
+            "message": "Feed pre-fetch started"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error starting feed pre-fetch: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.get("/feed/cached/{user_id}")
+async def get_cached_feed(user_id: str):
+    """
+    Get cached feed when user opens the app.
+    Returns instantly from Redis if available.
+
+    Called by iOS when app launches.
+
+    Returns:
+        {
+            "status": "success",
+            "feed_ready": true/false,
+            "group": {...} or null
+        }
+    """
+    try:
+        # Try to get from Redis feed cache first
+        feed_key = f"feed:{user_id}"
+        cached_feed = r.get(feed_key)
+
+        if cached_feed:
+            logger.info(f"✅ Returning cached feed for user {user_id}")
+            group = json.loads(cached_feed)
+
+            # Delete from Redis after reading (one-time use)
+            r.delete(feed_key)
+
+            return {
+                "status": "success",
+                "feed_ready": True,
+                "group": group
+            }
+
+        # If not in feed cache, check session cache (for signup flow)
+        # Find user's session_id first
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user and user.session_id:
+                session_key = f"session:{user.session_id}"
+                session_str = r.get(session_key)
+
+                if session_str:
+                    session_data = json.loads(session_str)
+
+                    if session_data.get('feed_ready') and session_data.get('first_group'):
+                        logger.info(f"✅ Returning first feed from signup for user {user_id}")
+                        first_group = session_data['first_group']
+
+                        # Remove first_group from session after reading
+                        del session_data['first_group']
+                        session_data['feed_ready'] = False
+                        r.set(session_key, json.dumps(session_data))
+
+                        return {
+                            "status": "success",
+                            "feed_ready": True,
+                            "group": first_group
+                        }
+        finally:
+            db.close()
+
+        # No cached feed available
+        logger.info(f"⚠️  No cached feed available for user {user_id}")
+        return {
+            "status": "success",
+            "feed_ready": False,
+            "group": None
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error getting cached feed: {e}")
         return {
             "status": "error",
             "error": str(e)

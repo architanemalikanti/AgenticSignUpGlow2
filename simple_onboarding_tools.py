@@ -257,15 +257,19 @@ def finalize_simple_signup(session_id: str) -> str:
                 # Generate first AI group description
                 groups = generate_ai_groups(user_id)
                 if groups and len(groups) > 0:
-                    first_group = groups[0]
+                    first_description = groups[0]  # This is a string
 
                     # Find users matching this description
                     matched_users = find_users_from_ai_description(
-                        first_group['description'],
+                        first_description,
                         top_k=5
                     )
 
-                    first_group['users'] = matched_users
+                    # Build the group object
+                    first_group = {
+                        "description": first_description,
+                        "users": matched_users
+                    }
 
                     # Store everything in Redis
                     session_data['user_id'] = user_id

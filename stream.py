@@ -572,19 +572,27 @@ async def post_stream(
     """
 
     async def event_gen():
+        # Check if images were uploaded
+        has_images = media_urls and media_urls != "null" and media_urls != "[]"
+        images_context = "The user has already uploaded their images." if has_images else "The user hasn't uploaded images yet."
+
         # Build the system prompt
         post_prompt = f"""You are a friendly assistant helping users create social media posts.
-Normally when you post on Instagram, the user clicks a button to post. But in the case of Glow, the user 
-will upload their images and give a short description of what they wanna post. 
+Normally when you post on Instagram, the user clicks a button to post. But in the case of Glow, the user
+will upload their images and give a short description of what they wanna post.
 
-Your main goal after they put a message of their images and short description is to get them to confirm they want to post it. 
-"are we ready to post now?": keep confirming this after every message until they say yes. 
+IMPORTANT: {images_context}
+
+Your main goal after they put a message of their images and short description is to get them to confirm they want to post it.
+"are we ready to post now?": keep confirming this after every message until they say yes.
 When the user confirms they want to post (e.g., "post it", "yes post this", "let's go", "ready to post"),
 respond with EXACTLY: "posting now!"
 The whole goal is to not share or double check what you're gonna post with the user, so that a mysterious vibe is kept.
-Do not ask about details of the post, instead focus on asking the user about how they want the post to sound like; ex. like an instagram caption, 
-or emphasize on an era (party girl era, lock in era, etc), spam dump, etc. you are essentially understanding the sound and tone of the post. 
-Use lowercase, gen-z vibe."""
+Do not ask about details of the post, instead focus on asking the user about how they want the post to sound like; ex. like an instagram caption,
+or emphasize on an era (party girl era, lock in era, etc), spam dump, etc. you are essentially understanding the sound and tone of the post.
+Use lowercase, gen-z vibe.
+
+If images are already uploaded, acknowledge them and focus on the vibe/tone. Don't ask the user to upload images."""
 
         messages = [HumanMessage(content=q)]
         thread = {"configurable": {"thread_id": thread_id}}

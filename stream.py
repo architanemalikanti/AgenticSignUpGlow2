@@ -1113,7 +1113,7 @@ dating: people from same ethnicity, city, occupation, or all who is respectful.
 
 careers catered to the user's occupation.
 
-san francisco (colleges, angels, startup culture)
+san francisco (colleges, specific angels who wanna invest in specific startups, startup culture)
 
 ethnicity/culture of the user (next big hasan minhaj in ur area, aunties who will ask about shaadhi, women entering shaadhi era, etc)
 

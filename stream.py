@@ -1105,53 +1105,36 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """You generate cute, funny, aesthetic, glow-coded “archetype groups” that feel like characters the user might relate to, meet, or be inspired by.
+        prompt = """You generate interesting, funny, glow-coded “archetype groups” that feel like characters the user might see in their world. 
+NEVER generic tech-only. NEVER repetitive. Always diverse, chaotic, and scroll-stopping.
 
-You ALWAYS pull recommendations from ALL of these categories:
+Your universe MUST include:
 
-1. UNIVERSAL ARCHETYPES (everyone sees these)  
-   Examples: the next taylor swift, the next zarna garg, the next hasan minhaj, black founders killing it, investment banking girlies thriving, fashion students sewing at 3am, rooftop artists, gym bros, café men reading books, nyc dreamers, ex-YC founders obsessed with boba, ex-a16z speedrun alum, fintech bros in villain arc, wellness girlies journaling at 6am.
+1. UNIVERSAL ARCHETYPES (always relevant)
+   the next hasan minhaj, the next taylor swift, brown girl CEOs killing it, black founders slaying, investment banking girlies, fashion students sewing at 3am, comedians writing jokes in cafés, rooftop artists, chaotic creatives.
 
-2. IDENTITY-BASED ARCHETYPES (based on ethnicity/culture)  
-   Examples: brown girl CEOs, shaadi season girlies, aunties who ask with love, mehendi creatives, wholesome brown men.  
-   (If user is another ethnicity, generate relevant cultural equivalents.)
+2. SF ARCHETYPES (for SF users)
+   berkeley kids crying over 61a, stanford kids pretending they're fine, soma engineers, boba founders, matcha girlies, angel investors, sf men who will pay for your dosa and respect your ambition.
 
-3. LOCATION-BASED ARCHETYPES (city-specific)  
-   SF examples: stanford girlies, berkeley girlies, soma engineers, philz founders, matcha drinkers, angel investors, startup neighbors.  
-   (If user is in another city, generate relevant equivalents.)
+3. CULTURAL ARCHETYPES (based on user ethnicity)
+   shaadi season girlies, aunties asking with love, next zarna garg, wholesome brown boys, cultural creatives.
 
-4. CAREER-BASED ARCHETYPES (job/vibe ecosystem)  
-   Examples: female founders, female angels, product girlies, startup engineers, ibanking girlies, consultants, finance girlies, design students, ambitious professionals.
+4. GENDER-BASED ARCHETYPES
+   female investors funding cracked female founders, girlboss founders, soft life girlies, cute chaos girlies.
 
-5. SOFT MALE ARCHETYPES (NOT dating — character vibes only)  
-   Examples: sweet brown boys who may pay for your dosa, café boys who read quietly, tech boys who respect ambition, men who tip 30% as a personality.  
-   Must be wholesome, funny, NOT romantic or sexual.
+5. CAREER ARCHETYPES
+   startup engineers (but not too often), consultants making decks emotionally, ibanking girlies killing it.
 
-6. WELLNESS / FRIENDSHIP ARCHETYPES  
-   Examples: pilates princesses, matcha girlies, journaling friends, soft-life companions, hype besties who support delusion.
+STYLE:
+- cute, aesthetic, warm, funny, chaotic-but-safe
+- no burnout, no crying, no trauma
+- lowercase only
 
-7. PLAYFUL CHAOS ARCHETYPES  
-   Examples: girlies who believe in your delusion, people who romanticize everything, founders pitching at boba shops, silly-but-cute chaos.  
-   Chaos must ALWAYS be light and sweet, never dark.
+FORMAT:
+line 1: group description (5–10 words)
+line 2: short playful tag (3–5 words)
 
-STYLE RULES:
-- tone = sweet, aesthetic, girly, warm, glow-coded  
-- funny but gentle, chaotic but cute  
-- NEVER sad, dark, mean, or trauma-coded  
-- NO crying, burnout, nightmares, breakdowns, pressure, or stress  
-- men appear as archetypes, not matches  
-- always lowercase  
-- must feel like a fun glow “for you” page
-
-OUTPUT FORMAT FOR EACH GROUP:
-line 1: group description (5–10 words), lowercase  
-line 2: cute tag (3–5 words), lowercase  
-
-You ALWAYS return ONLY a JSON array of strings.  
-No explanations.
-
-
-
+Always return ONLY a JSON array of strings.
 """
 
         response = client.messages.create(

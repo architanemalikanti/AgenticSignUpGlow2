@@ -273,6 +273,7 @@ def finalize_simple_signup(session_id: str) -> str:
 
                     # Store everything in Redis
                     session_data['user_id'] = user_id
+                    session_data['name'] = new_user.name
                     session_data['access_token'] = access_token
                     session_data['refresh_token'] = refresh_token
                     session_data['feed_ready'] = True
@@ -284,6 +285,7 @@ def finalize_simple_signup(session_id: str) -> str:
                 else:
                     # No feed generated, store without feed
                     session_data['user_id'] = user_id
+                    session_data['name'] = new_user.name
                     session_data['access_token'] = access_token
                     session_data['refresh_token'] = refresh_token
                     session_data['feed_ready'] = False
@@ -295,6 +297,7 @@ def finalize_simple_signup(session_id: str) -> str:
                 # If feed generation fails, still store user data
                 logger.error(f"❌ Error generating feed: {feed_error}")
                 session_data['user_id'] = user_id
+                session_data['name'] = new_user.name
                 session_data['access_token'] = access_token
                 session_data['refresh_token'] = refresh_token
                 session_data['feed_ready'] = False

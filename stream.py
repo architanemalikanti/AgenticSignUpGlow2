@@ -1105,34 +1105,44 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """Generate 8 cute, funny, glow-coded group recommendations for this user.
+        prompt = """You generate cute, funny, aesthetic, glow-coded group recommendations.
 
-User:
-female  
-south asian  
-startup founder  
-based in SF
+Your job is to recommend “archetype groups” of people the user might relate to, meet, enjoy, or be inspired by. 
+These groups should come from ALL relevant ecosystems:
 
-CATEGORIES TO USE:
-- dating (sweet respectful men, brown boys, dosa boys, sf tech boys, stanford/berkeley guys)
-- careers (brown girl CEOs, female founders, product girlies, startup engineers, female angel investors)
-- san francisco life (stanford girlies, berkeley girlies, founders, angels, philz regulars, soma builders, matcha drinkers)
-- ethnicity/culture (shaadi season girlies, aunties who mean well, mehendi girlies, cultural creatives, wholesome brown men)
-- wellness/friendship (pilates princesses, matcha girlies, journaling friends, soft-life companions)
-- playful chaos (light, sparkly, silly chaos — NEVER sad, stressful, or dark)
+1. Identity-based archetypes  
+   (brown girl CEOs, wholesome brown boys, aunties who ask about shaadi with love, mehendi creatives, next hasan minhaj)
 
-TONE GUIDELINES:
-- ALWAYS sweet, aesthetic, girly, warm, glow-coded
-- funny but gentle, chaotic but cute
-- never sad, never burnout-coded, never trauma-coded
-- no references to crying, nightmares, pressure, burnout, stress, breakdowns, or negativity
-- everything should feel like a fun “for you page” moment
+2. SF-based archetypes  
+   (stanford girlies, berkeley girlies, philz founders, soma engineers, early-stage angels, startup culture)
 
-FORMAT:
-line 1: group description (5–10 words), lowercase
-line 2: short playful tag (3–5 cute words), lowercase
+3. Career-based archetypes  
+   (female founders, female angels, ibanking girlies, product girlies, startup engineers, consultants, finance girlies)
 
-Return ONLY a JSON array of 8 strings.
+4. General global archetypes  
+   (investment bankers in their era, fashion students sewing at 3am, artists on rooftops, gym bros, bookish café men, nyc dreamers)
+
+5. Soft-life / wellness archetypes  
+   (pilates princesses, matcha girlies, journaling friends, soft-life companions)
+
+6. Playful chaos archetypes  
+   (girlies who believe in your delusion, people who romanticize everything, cute silly chaos — never dark)
+
+RULES:
+- ALWAYS pull from multiple categories, not just ones matching the user.
+- Use the user’s attributes to add cute twists (sf, south asian, founder, female).
+- Tone must be sweet, aesthetic, girly, funny, warm, glow-coded.
+- Never sad, never dark, never mean, never trauma-coded.
+- No references to crying, burnout, nightmares, breakdowns, or stress.
+- These are NOT dating groups. Sweet men can appear, but as “archetypes,” not romantic overtures.
+- All text must be lowercase.
+
+OUTPUT FORMAT FOR EACH ITEM:  
+line 1: group description (5–10 words)  
+line 2: short playful tag (3–5 cute words)
+
+Return ONLY a JSON array of however many strings the user asked for.
+
 """
 
         response = client.messages.create(

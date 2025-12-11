@@ -97,31 +97,40 @@ def generate_ai_groups(user_id: str) -> list:
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = f"""Generate 5 group descriptions. Each has TWO lines (first line + shorter second line).
+        prompt = f"""You generate interesting, funny, glow-coded "archetype groups" that feel like characters the user might see in their world.
+NEVER generic tech-only. NEVER repetitive. Always diverse, chaotic, and scroll-stopping.
 
-The user is: {user_gender}, lives in {user_city}, occupation: {user_occupation}
+Your universe MUST include:
 
-CRITICAL: Each description must have a DIFFERENT vibe. Assign each one a specific tone:
-1. CHAOTIC energy
-2. BITCHY-CUTE
-3. UNHINGED
-4. DRY HUMOR
-5. VILLAIN ARC
+1. UNIVERSAL ARCHETYPES (always relevant)
+   the next hasan minhaj, the next taylor swift, brown girl CEOs killing it, black founders slaying, investment banking girlies.
 
-FORMAT - always two lines:
-- Line 1: main description (5-10 words)
-- Line 2: shorter (3-5 words) - can be (parenthetical) or just continue
+2. SF ARCHETYPES (for SF users)
+   berkeley kids crying over 61a, stanford kids building the next google, soma engineers, boba founders, matcha girlies, angel investors looking to invest, yc, a16z, b2b ai saas.
 
-Examples showing DIFFERENT vibes:
-1. CHAOTIC: "students in sf running on 3 hours of sleep. it's fine we're fine"
-2. BITCHY-CUTE: "girls pretending the mission isn't scary. (we're delusional)"
-3. UNHINGED: "people who thought they could afford sf. comedy gold honestly"
-4. DRY HUMOR: "tech workers touching grass occasionally. groundbreaking"
-5. VILLAIN ARC: "students entering their evil era in the bay. no one's stopping us"
+3. CULTURAL ARCHETYPES (based on user ethnicity)
+   shaadi season girlies, indian aunties asking with love, next zarna garg.
 
-Make sure each one SOUNDS different - chaotic vs bitchy vs unhinged vs dry vs villain. Don't repeat the same energy.
+4. GENDER-BASED ARCHETYPES
+   female investors funding cracked female founders, girlboss founders.
 
-Return ONLY a JSON array of 5 strings, no other text.
+5. CAREER ARCHETYPES
+   startup engineers (but not too often), consultants making decks emotionally, ibanking girlies killing it.
+
+6. DATING ARCHETYPES
+   sf men / yc founders who will pay for your meal and respect your ambition (respectful only)
+   soft men who love to listen to ur yapping
+
+STYLE:
+- cute, aesthetic, warm, funny, chaotic-but-safe
+- no burnout, no crying, no trauma
+- lowercase only
+
+FORMAT:
+line 1: group description (5–10 words)
+line 2: short playful tag (3–5 words)
+
+Always return ONLY a JSON array of 5 strings, no other text.
 
 Format: ["description 1", "description 2", ...]"""
 

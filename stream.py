@@ -1111,19 +1111,23 @@ NEVER generic tech-only. NEVER repetitive. Always diverse, chaotic, and scroll-s
 Your universe MUST include:
 
 1. UNIVERSAL ARCHETYPES (always relevant)
-   the next hasan minhaj, the next taylor swift, brown girl CEOs killing it, black founders slaying, investment banking girlies, fashion students sewing at 3am, comedians writing jokes in cafés, rooftop artists, chaotic creatives.
+   the next hasan minhaj, the next taylor swift, brown girl CEOs killing it, black founders slaying, investment banking girlies.
 
 2. SF ARCHETYPES (for SF users)
-   berkeley kids crying over 61a, stanford kids pretending they're fine, soma engineers, boba founders, matcha girlies, angel investors, sf men who will pay for your dosa and respect your ambition.
+   berkeley kids crying over 61a, stanford kids building the next google, soma engineers, boba founders, matcha girlies, angel investors looking to invest, yc, a16z, b2b ai saas. 
 
 3. CULTURAL ARCHETYPES (based on user ethnicity)
-   shaadi season girlies, aunties asking with love, next zarna garg, wholesome brown boys, cultural creatives.
+   shaadi season girlies, indian aunties asking with love, next zarna garg. 
 
 4. GENDER-BASED ARCHETYPES
-   female investors funding cracked female founders, girlboss founders, soft life girlies, cute chaos girlies.
+   female investors funding cracked female founders, girlboss founders. 
 
 5. CAREER ARCHETYPES
    startup engineers (but not too often), consultants making decks emotionally, ibanking girlies killing it.
+6. DATING ARCHETYPES
+sf men / yc founders who will pay for your meal and respect your ambition (respectful only)
+soft men who love to listen to ur yapping
+
 
 STYLE:
 - cute, aesthetic, warm, funny, chaotic-but-safe
@@ -1135,6 +1139,7 @@ line 1: group description (5–10 words)
 line 2: short playful tag (3–5 words)
 
 Always return ONLY a JSON array of strings.
+
 """
 
         response = client.messages.create(

@@ -1105,40 +1105,50 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """You generate cute, funny, aesthetic, glow-coded group recommendations.
+        prompt = """You generate cute, funny, aesthetic, glow-coded “archetype groups” that feel like characters the user might relate to, meet, or be inspired by.
 
-Your job is to recommend “archetype groups” of people the user might relate to, meet, enjoy, or be inspired by. 
-These groups should come from ALL relevant ecosystems:
+You ALWAYS pull recommendations from ALL of these categories:
 
-1. Identity-based archetypes  
-   (brown girl CEOs, wholesome brown boys, aunties who ask about shaadi with love, mehendi creatives, next hasan minhaj)
+1. UNIVERSAL ARCHETYPES (everyone sees these)  
+   Examples: the next taylor swift, the next zarna garg, the next hasan minhaj, black founders killing it, investment banking girlies thriving, fashion students sewing at 3am, rooftop artists, gym bros, café men reading books, nyc dreamers, ex-YC founders obsessed with boba, ex-a16z speedrun alum, fintech bros in villain arc, wellness girlies journaling at 6am.
 
-2. SF-based archetypes  
-   (stanford girlies, berkeley girlies, philz founders, soma engineers, early-stage angels, startup culture)
+2. IDENTITY-BASED ARCHETYPES (based on ethnicity/culture)  
+   Examples: brown girl CEOs, shaadi season girlies, aunties who ask with love, mehendi creatives, wholesome brown men.  
+   (If user is another ethnicity, generate relevant cultural equivalents.)
 
-3. Career-based archetypes  
-   (female founders, female angels, ibanking girlies, product girlies, startup engineers, consultants, finance girlies)
+3. LOCATION-BASED ARCHETYPES (city-specific)  
+   SF examples: stanford girlies, berkeley girlies, soma engineers, philz founders, matcha drinkers, angel investors, startup neighbors.  
+   (If user is in another city, generate relevant equivalents.)
 
-4. General global archetypes  
-   (investment bankers in their era, fashion students sewing at 3am, artists on rooftops, gym bros, bookish café men, nyc dreamers)
+4. CAREER-BASED ARCHETYPES (job/vibe ecosystem)  
+   Examples: female founders, female angels, product girlies, startup engineers, ibanking girlies, consultants, finance girlies, design students, ambitious professionals.
 
-5. Soft-life / wellness archetypes  
-   (pilates princesses, matcha girlies, journaling friends, soft-life companions)
+5. SOFT MALE ARCHETYPES (NOT dating — character vibes only)  
+   Examples: sweet brown boys who may pay for your dosa, café boys who read quietly, tech boys who respect ambition, men who tip 30% as a personality.  
+   Must be wholesome, funny, NOT romantic or sexual.
 
-6. Playful chaos  
-   (girlies who believe in your delusion, people who romanticize everything, cute silly chaos — never dark)
+6. WELLNESS / FRIENDSHIP ARCHETYPES  
+   Examples: pilates princesses, matcha girlies, journaling friends, soft-life companions, hype besties who support delusion.
 
-TONE:
-- sweet, aesthetic, girly, warm, glow-coded  
-- never sad, dark, mean, or trauma-coded  
-- men are archetypes, not matches  
-- lowercase only  
+7. PLAYFUL CHAOS ARCHETYPES  
+   Examples: girlies who believe in your delusion, people who romanticize everything, founders pitching at boba shops, silly-but-cute chaos.  
+   Chaos must ALWAYS be light and sweet, never dark.
 
-FORMAT:
-line 1: group description (5–10 words)  
-line 2: short playful tag (3–5 cute words)  
+STYLE RULES:
+- tone = sweet, aesthetic, girly, warm, glow-coded  
+- funny but gentle, chaotic but cute  
+- NEVER sad, dark, mean, or trauma-coded  
+- NO crying, burnout, nightmares, breakdowns, pressure, or stress  
+- men appear as archetypes, not matches  
+- always lowercase  
+- must feel like a fun glow “for you” page
 
-Always return ONLY a JSON array of strings.
+OUTPUT FORMAT FOR EACH GROUP:
+line 1: group description (5–10 words), lowercase  
+line 2: cute tag (3–5 words), lowercase  
+
+You ALWAYS return ONLY a JSON array of strings.  
+No explanations.
 
 
 

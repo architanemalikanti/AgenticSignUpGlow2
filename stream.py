@@ -1105,43 +1105,35 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """Using the categories below, generate 8 group recommendations for this user:
+        prompt = """Generate 8 cute, funny, glow-coded group recommendations for this user.
 
-Categories:
+User:
+female  
+south asian  
+startup founder  
+based in SF
 
-dating: people from same ethnicity, city, occupation, or all who is respectful. 
+CATEGORIES TO USE:
+- dating (sweet respectful men, brown boys, dosa boys, sf tech boys, stanford/berkeley guys)
+- careers (brown girl CEOs, female founders, product girlies, startup engineers, female angel investors)
+- san francisco life (stanford girlies, berkeley girlies, founders, angels, philz regulars, soma builders, matcha drinkers)
+- ethnicity/culture (shaadi season girlies, aunties who mean well, mehendi girlies, cultural creatives, wholesome brown men)
+- wellness/friendship (pilates princesses, matcha girlies, journaling friends, soft-life companions)
+- playful chaos (light, sparkly, silly chaos — NEVER sad, stressful, or dark)
 
-careers catered to the user's occupation.
-
-san francisco (colleges, specific angels who wanna invest in specific startups, startup culture)
-
-ethnicity/culture of the user (next big hasan minhaj in ur area, aunties who will ask about shaadhi, women entering shaadhi era, etc)
-
-wellness/friendship (brown girls who hate dating but love 3am dosa run friendships, etc)
-
-chaotic wildcard related to all of these fields, or mutually exclusive. 
-
-User attributes:
-Gender: female
-City: SF
-Occupation: startup founder
-Ethnicity: south asian
-
-RULES:
-
-Pull from ALL categories (not just ones matching the user)
-
-Use her attributes to add twists (brown men, dosa boys, shaadi, Stanford, Berkeley, angels, founders, girlies, etc.)
-
-Must be cute, funny, aesthetic, unhinged sometimes, lowercase.
-
-Never mean or rude, never dark-chaotic. Respectful.
+TONE GUIDELINES:
+- ALWAYS sweet, aesthetic, girly, warm, glow-coded
+- funny but gentle, chaotic but cute
+- never sad, never burnout-coded, never trauma-coded
+- no references to crying, nightmares, pressure, burnout, stress, breakdowns, or negativity
+- everything should feel like a fun “for you page” moment
 
 FORMAT:
-line 1: group description (5–10 words)
-line 2: short playful tag (3–5 words)
+line 1: group description (5–10 words), lowercase
+line 2: short playful tag (3–5 cute words), lowercase
 
-Return as a JSON array of strings"""
+Return ONLY a JSON array of 8 strings.
+"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

@@ -1125,23 +1125,21 @@ These groups should come from ALL relevant ecosystems:
 5. Soft-life / wellness archetypes  
    (pilates princesses, matcha girlies, journaling friends, soft-life companions)
 
-6. Playful chaos archetypes  
+6. Playful chaos  
    (girlies who believe in your delusion, people who romanticize everything, cute silly chaos — never dark)
 
-RULES:
-- ALWAYS pull from multiple categories, not just ones matching the user.
-- Use the user’s attributes to add cute twists (sf, south asian, founder, female).
-- Tone must be sweet, aesthetic, girly, funny, warm, glow-coded.
-- Never sad, never dark, never mean, never trauma-coded.
-- No references to crying, burnout, nightmares, breakdowns, or stress.
-- These are NOT dating groups. Sweet men can appear, but as “archetypes,” not romantic overtures.
-- All text must be lowercase.
+TONE:
+- sweet, aesthetic, girly, warm, glow-coded  
+- never sad, dark, mean, or trauma-coded  
+- men are archetypes, not matches  
+- lowercase only  
 
-OUTPUT FORMAT FOR EACH ITEM:  
+FORMAT:
 line 1: group description (5–10 words)  
-line 2: short playful tag (3–5 cute words)
+line 2: short playful tag (3–5 cute words)  
 
-Return ONLY a JSON array of however many strings the user asked for.
+Always return ONLY a JSON array of strings.
+
 
 """
 

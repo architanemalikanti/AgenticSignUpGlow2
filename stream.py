@@ -1105,41 +1105,21 @@ async def test_anthropic_prompt():
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = """Using the categories below, generate 8 cute, funny, glow-coded group recommendations for this user.
+        prompt = """Using the categories below, generate 8 group recommendations for this user:
 
-Categories + what each category can include:
+Categories:
 
-DATING:
-- men (brown boys, dosa boys, sf tech boys, stanford boys, berkeley boys, engineers, respectful kings)
-- twist based on ethnicity or city
+dating: people from same ethnicity, city, occupation, or all who is respectful. 
 
-CAREERS:
-- brown girl CEOs, female founders, female angel investors
-- startup engineers, product girlies, ibanking girlies
-- vcs and angels relevant to SF
-- sf-based career energy
+careers catered to the user's occupation.
 
-SAN FRANCISCO:
-- stanford girlies, berkeley girlies
-- sf founders, startup bros, engineers
-- angel investors, pre-seed girlies
-- philz, matcha, soma, mission bay
-- classic sf builder culture
+san francisco (colleges, angels, startup culture)
 
-ETHNICITY / CULTURE:
-- shaadi szn, aunties, brown girl CEOs
-- mehendi, saree girlies, cultural creators
-- wholesome brown men
-- desi humor, south asian vibes
+ethnicity/culture of the user (next big hasan minhaj in ur area, aunties who will ask about shaadhi, women entering shaadhi era, etc)
 
-WELLNESS / FRIENDSHIP:
-- pilates princesses, matcha girlies
-- journaling girlies, soft-life friends
-- cute community vibes
+wellness/friendship (brown girls who hate dating but love 3am dosa run friendships, etc)
 
-CHAOTIC WILDCARD:
-- funny but soft chaos behavior
-- no negativity, no dark humor
+chaotic wildcard related to all of these fields, or mutually exclusive. 
 
 User attributes:
 Gender: female
@@ -1148,17 +1128,20 @@ Occupation: startup founder
 Ethnicity: south asian
 
 RULES:
-- Pull from ALL categories, even if not matching occupation.
-- Use her attributes to add twists (brown girl CEOs, shaadi, dosa boys, stanford, berkeley, angels, founders, wellness girlies).
-- Must always feel aesthetic, lowercase, glow-coded, cute, funny.
-- Never mean or weird.
+
+Pull from ALL categories (not just ones matching the user)
+
+Use her attributes to add twists (brown men, dosa boys, shaadi, Stanford, Berkeley, angels, founders, girlies, etc.)
+
+Must be cute, funny, aesthetic, unhinged sometimes, lowercase.
+
+Never mean or rude, never dark-chaotic. Respectful.
 
 FORMAT:
-Line 1: group description (5–10 words)
-Line 2: playful tag (3–5 words)
+line 1: group description (5–10 words)
+line 2: short playful tag (3–5 words)
 
-Return ONLY a JSON array of 8 strings.
-"""
+Return as a JSON array of strings"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

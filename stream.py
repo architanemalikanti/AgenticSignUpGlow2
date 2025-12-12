@@ -938,6 +938,238 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
         }
 
 
+class VerificationCodeRequest(BaseModel):
+    email: str
+
+
+@app.post("/auth/send-verification-code")
+async def send_verification_code(request: VerificationCodeRequest):
+    """
+    Send a 6-digit verification code to the provided email.
+
+    Request body:
+    {
+        "email": "archita@example.com"
+    }
+
+    Returns:
+    {
+        "status": "success",
+        "message": "Verification code sent to email",
+        "code": "123456"  // Only included for testing, remove in production
+    }
+    """
+    import smtplib
+    from email.message import EmailMessage
+    import secrets
+    import os
+
+    try:
+        email = request.email
+
+        # Generate 6-digit verification code
+        verification_code = secrets.randbelow(900000) + 100000
+
+        # Email configuration
+        EMAIL_USER = os.getenv("EMAIL_USER")
+        EMAIL_PASS = os.getenv("EMAIL_PASS")
+
+        if not EMAIL_USER or not EMAIL_PASS:
+            logger.error("❌ Email credentials not configured")
+            return {
+                "status": "error",
+                "error": "Email service not configured"
+            }
+
+        # Create email
+        subject = "hey bestie 💌"
+        body = f"bestieee ur Glow verification code is {verification_code}. now hurry before the universe catches on ur new era! <3"
+
+        msg = EmailMessage()
+        msg["From"] = EMAIL_USER
+        msg["To"] = email
+        msg["Subject"] = subject
+        msg.set_content(body)
+
+        # Send email
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(EMAIL_USER, EMAIL_PASS)
+            smtp.send_message(msg)
+
+        logger.info(f"✅ Verification code {verification_code} sent to {email}")
+
+        return {
+            "status": "success",
+            "message": f"Verification code sent to {email}",
+            "code": str(verification_code)  # iOS will compare this with user input
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error sending verification code: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+class SimpleSignupRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+    name: str
+    city: str
+    occupation: str
+    gender: str
+    ethnicity: str
+
+
+@app.post("/signup/simple")
+async def simple_signup(request: SimpleSignupRequest):
+    """
+    Simple signup endpoint - takes JSON, creates user immediately.
+
+    Request body:
+    {
+        "username": "architavn",
+        "email": "archita@example.com",
+        "password": "password123",
+        "name": "Archita",
+        "city": "San Francisco",
+        "occupation": "software engineer",
+        "gender": "female",
+        "ethnicity": "south asian"
+    }
+
+    Returns:
+    {
+        "status": "success",
+        "user_id": "...",
+        "name": "...",
+        "access_token": "...",
+        "refresh_token": "...",
+        "profile_image": "..." or null,
+        "feed_ready": true/false,
+        "first_group": {...} or null
+    }
+    """
+    import bcrypt
+    from database.db import SessionLocal
+    from database.models import User
+    import uuid
+    from datetime import datetime
+
+    try:
+        db = SessionLocal()
+
+        # Check if username already exists
+        existing_user = db.query(User).filter(User.username == request.username).first()
+        if existing_user:
+            db.close()
+            return {
+                "status": "error",
+                "error": "Username already taken"
+            }
+
+        # Check if email already exists
+        existing_email = db.query(User).filter(User.email == request.email).first()
+        if existing_email:
+            db.close()
+            return {
+                "status": "error",
+                "error": "Email already registered"
+            }
+
+        # Hash password
+        hashed_password = bcrypt.hashpw(
+            request.password.encode('utf-8'),
+            bcrypt.gensalt()
+        ).decode('utf-8')
+
+        # Get cartoon avatar for females
+        profile_image_url = None
+        if request.gender.lower() == 'female':
+            from avatar_helper import get_cartoon_avatar
+            profile_image_url = get_cartoon_avatar(request.gender, request.ethnicity)
+            logger.info(f"🎨 Selected avatar: {profile_image_url}")
+
+        # Create user
+        user_id = str(uuid.uuid4())
+        new_user = User(
+            id=user_id,
+            username=request.username,
+            email=request.email,
+            name=request.name,
+            password=hashed_password,
+            occupation=request.occupation,
+            gender=request.gender,
+            ethnicity=request.ethnicity,
+            city=request.city,
+            profile_image=profile_image_url,
+            created_at=datetime.utcnow()
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        logger.info(f"✅ Created user {user_id} (@{request.username})")
+
+        # Create profile embedding
+        from profile_embeddings import create_user_profile_embedding
+        embedding_result = create_user_profile_embedding(new_user)
+        logger.info(f"📊 Embedding creation: {embedding_result}")
+
+        # Generate JWT tokens
+        from jwt_utils import create_access_token, create_refresh_token
+        access_token = create_access_token(user_id)
+        refresh_token = create_refresh_token(user_id)
+
+        # Generate first feed group synchronously
+        logger.info(f"🔄 Generating first feed for user {user_id}")
+        from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+
+        first_group = None
+        feed_ready = False
+
+        try:
+            groups = generate_ai_groups(user_id)
+            if groups and len(groups) > 0:
+                first_description = groups[0]
+                matched_users = find_users_from_ai_description(first_description, top_k=5)
+
+                first_group = {
+                    "description": first_description,
+                    "users": matched_users
+                }
+                feed_ready = True
+                logger.info(f"✅ First feed group generated")
+        except Exception as feed_error:
+            logger.error(f"❌ Error generating feed: {feed_error}")
+
+        db.close()
+
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "name": new_user.name,
+            "username": new_user.username,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "profile_image": profile_image_url,
+            "feed_ready": feed_ready,
+            "first_group": first_group
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error creating user: {e}")
+        if 'db' in locals():
+            db.close()
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @app.get("/feed/recommendations/{user_id}/stream")
 async def stream_ai_recommendations(user_id: str):
     """

@@ -128,6 +128,7 @@ class Post(Base):
     title = Column(String, nullable=True)  # Post title
     location = Column(String, nullable=True)  # Location
     caption = Column(String, nullable=True)  # Caption text
+    ai_sentence = Column(String, nullable=True)  # AI-generated announcement sentence ("babe wake up, archita just posted")
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

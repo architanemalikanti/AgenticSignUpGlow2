@@ -209,12 +209,50 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
 
         db = SessionLocal()
 
+        # Get poster's name for AI sentence generation
+        poster = db.query(User).filter(User.id == user_id).first()
+        poster_name = poster.name if poster else "Someone"
+
+        # Generate AI sentence for post announcement
+        ai_sentence = None
+        try:
+            client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+            prompt = f"""Generate a short, funny, gen-z announcement that {poster_name} just posted.
+
+Style: lowercase, chaotic, excited, funny, varied vibes
+Length: 5-10 words max
+
+Examples of DIFFERENT vibes:
+- "babe wake up, {poster_name} just posted"
+- "{poster_name} is back with the content"
+- "everyone stop what you're doing. {poster_name} posted"
+- "{poster_name}'s feed update just dropped"
+- "new {poster_name} post alert 🚨"
+- "{poster_name} said let me feed y'all real quick"
+
+Make it sound DIFFERENT each time. Return ONLY the sentence, no quotes or extra text."""
+
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=50,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            ai_sentence = response.content[0].text.strip().strip('"\'')
+            logger.info(f"✨ Generated AI sentence: {ai_sentence}")
+
+        except Exception as e:
+            logger.error(f"❌ Error generating AI sentence: {e}")
+            ai_sentence = f"{poster_name} just posted"  # Fallback
+
         # Create the post
         new_post = Post(
             user_id=user_id,
             title=title,
             caption=caption,
             location=location if location and location.lower() != "null" else None,
+            ai_sentence=ai_sentence,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -269,9 +307,10 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
                 from push_notifications import send_push_notification
 
                 # Prepare notification content
-                notification_title = title if title else "New Post"
-                notification_body = caption if caption else ""
-                notification_content = f"{poster_name} posted: {title}" if title else f"{poster_name} posted"
+                # Use AI sentence as notification title!
+                notification_title = ai_sentence if ai_sentence else (title if title else "New Post")
+                notification_body = title if title else caption  # Post title becomes body
+                notification_content = ai_sentence if ai_sentence else f"{poster_name} posted: {title}"
 
                 for follower_id in follower_ids:
                     follower = db.query(User).filter(User.id == follower_id).first()

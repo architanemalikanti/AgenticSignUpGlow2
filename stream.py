@@ -773,6 +773,7 @@ async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
                 "title": post.title,
                 "caption": post.caption,
                 "location": post.location,
+                "ai_sentence": post.ai_sentence,  # AI-generated announcement
                 "media_urls": media_urls,
                 "created_at": post.created_at.isoformat() if post.created_at else None,
                 # Actor is the person who created the post
@@ -796,6 +797,141 @@ async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
 
     except Exception as e:
         logger.error(f"❌ Error getting feed: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.get("/feed/mixed/{user_id}")
+async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
+    """
+    Get mixed feed with friend posts + AI recommendation groups.
+
+    Logic:
+    - Returns friend posts (from people you follow) mixed with AI groups
+    - Every 4 friend posts, inserts 1 AI group
+    - When friend posts run out, continues with infinite AI groups
+    - Posts ordered by recency (newest first)
+
+    Query params:
+    - user_id: ID of the user viewing the feed
+    - offset: Pagination offset (default 0)
+    - limit: Max friend posts to fetch (default 20)
+
+    Returns:
+        {
+            "status": "success",
+            "feed": [
+                {"type": "post", "data": {...}},
+                {"type": "ai_group", "data": {...}},
+                ...
+            ]
+        }
+    """
+    from database.models import Post, PostMedia
+    from sqlalchemy import desc
+    from sqlalchemy.orm import joinedload
+
+    try:
+        db = SessionLocal()
+
+        # Step 1: Get friend posts (people you follow + your own)
+        following = db.query(Follow.following_id).filter(Follow.follower_id == user_id).all()
+        following_ids = [f[0] for f in following]
+        following_ids.append(user_id)  # Include your own posts
+
+        friend_posts = db.query(Post).filter(
+            Post.user_id.in_(following_ids)
+        ).options(
+            joinedload(Post.user),
+            joinedload(Post.media)
+        ).order_by(desc(Post.created_at)).limit(limit).offset(offset).all()
+
+        # Build friend posts data
+        friend_posts_data = []
+        for post in friend_posts:
+            user = post.user
+            media_urls = [m.media_url for m in post.media]
+
+            friend_posts_data.append({
+                "post_id": post.id,
+                "user_id": post.user_id,
+                "username": user.username if user else "unknown",
+                "name": user.name if user else "Unknown",
+                "title": post.title,
+                "caption": post.caption,
+                "location": post.location,
+                "ai_sentence": post.ai_sentence,
+                "media_urls": media_urls,
+                "created_at": post.created_at.isoformat() if post.created_at else None,
+                "actor_id": post.user_id,
+                "actor_username": user.username if user else "unknown",
+                "actor_name": user.name if user else "Unknown",
+                "actor_profile_image": user.profile_image if user else None
+            })
+
+        db.close()
+
+        # Step 2: Generate AI groups
+        from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+
+        # Determine how many AI groups to generate
+        # If we have friend posts: 1 group per 4 posts
+        # If no friend posts: generate 5 groups for infinite scroll
+        num_ai_groups = max(len(friend_posts_data) // 4 + 1, 5) if len(friend_posts_data) < limit else len(friend_posts_data) // 4
+
+        logger.info(f"🤖 Generating {num_ai_groups} AI groups for mixed feed")
+
+        ai_descriptions = generate_ai_groups(user_id)
+        ai_groups_data = []
+
+        for i, description in enumerate(ai_descriptions[:num_ai_groups]):
+            matched_users = find_users_from_ai_description(description, top_k=5)
+            ai_groups_data.append({
+                "description": description,
+                "users": matched_users
+            })
+
+        # Step 3: Mix friend posts + AI groups
+        mixed_feed = []
+        ai_group_index = 0
+
+        for i, post in enumerate(friend_posts_data):
+            # Add friend post
+            mixed_feed.append({
+                "type": "post",
+                "data": post
+            })
+
+            # Insert AI group every 4 posts
+            if (i + 1) % 4 == 0 and ai_group_index < len(ai_groups_data):
+                mixed_feed.append({
+                    "type": "ai_group",
+                    "data": ai_groups_data[ai_group_index]
+                })
+                ai_group_index += 1
+
+        # If friend posts ran out, add remaining AI groups for infinite scroll
+        while ai_group_index < len(ai_groups_data):
+            mixed_feed.append({
+                "type": "ai_group",
+                "data": ai_groups_data[ai_group_index]
+            })
+            ai_group_index += 1
+
+        logger.info(f"✅ Generated mixed feed: {len(friend_posts_data)} posts + {ai_group_index} AI groups = {len(mixed_feed)} total items")
+
+        return {
+            "status": "success",
+            "feed": mixed_feed,
+            "has_more_posts": len(friend_posts_data) >= limit,  # True if there might be more friend posts
+            "offset": offset,
+            "limit": limit
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error generating mixed feed: {e}")
         return {
             "status": "error",
             "error": str(e)
@@ -1332,7 +1468,9 @@ async def get_user_posts(user_id: str, limit: int = 2, offset: int = 0):
 
             user_posts.append({
                 "post_id": post.id,
+                "title": post.title,
                 "caption": post.caption,
+                "ai_sentence": post.ai_sentence,  # AI-generated announcement
                 "post_media": media_urls,  # Array of 1-10 image URLs
                 "created_at": post.created_at.isoformat() if post.created_at else None,
                 # Actor is the person who created the post

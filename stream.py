@@ -1070,14 +1070,7 @@ async def simple_signup(request: SimpleSignupRequest):
                 "error": "Username already taken"
             }
 
-        # Check if email already exists
-        existing_email = db.query(User).filter(User.email == request.email).first()
-        if existing_email:
-            db.close()
-            return {
-                "status": "error",
-                "error": "Email already registered"
-            }
+        # Email doesn't need to be unique (for testing multiple accounts)
 
         # Hash password
         hashed_password = bcrypt.hashpw(

@@ -1026,7 +1026,7 @@ class SimpleSignupRequest(BaseModel):
 @app.post("/signup/simple")
 async def simple_signup(request: SimpleSignupRequest):
     """
-    Simple signup endpoint - takes JSON, creates user immediately.
+    Simple signup endpoint - returns redis_id immediately, creates user in background.
 
     Request body:
     {
@@ -1043,20 +1043,16 @@ async def simple_signup(request: SimpleSignupRequest):
     Returns:
     {
         "status": "success",
-        "user_id": "...",
-        "name": "...",
-        "access_token": "...",
-        "refresh_token": "...",
-        "profile_image": "..." or null,
-        "feed_ready": true/false,
-        "first_group": {...} or null
+        "redis_id": "abc-123"
     }
+
+    iOS should poll: GET /poll/{redis_id} to get user data when ready
     """
     import bcrypt
     from database.db import SessionLocal
     from database.models import User
     import uuid
-    from datetime import datetime
+    import asyncio
 
     try:
         db = SessionLocal()
@@ -1070,93 +1066,159 @@ async def simple_signup(request: SimpleSignupRequest):
                 "error": "Username already taken"
             }
 
-        # Email doesn't need to be unique (for testing multiple accounts)
-
-        # Hash password
-        hashed_password = bcrypt.hashpw(
-            request.password.encode('utf-8'),
-            bcrypt.gensalt()
-        ).decode('utf-8')
-
-        # Get cartoon avatar for females
-        profile_image_url = None
-        if request.gender.lower() == 'female':
-            from avatar_helper import get_cartoon_avatar
-            profile_image_url = get_cartoon_avatar(request.gender, request.ethnicity)
-            logger.info(f"🎨 Selected avatar: {profile_image_url}")
-
-        # Create user
-        user_id = str(uuid.uuid4())
-        new_user = User(
-            id=user_id,
-            username=request.username,
-            email=request.email,
-            name=request.name,
-            password=hashed_password,
-            occupation=request.occupation,
-            gender=request.gender,
-            ethnicity=request.ethnicity,
-            city=request.city,
-            profile_image=profile_image_url,
-            created_at=datetime.utcnow()
-        )
-
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-
-        logger.info(f"✅ Created user {user_id} (@{request.username})")
-
-        # Create profile embedding
-        from profile_embeddings import create_user_profile_embedding
-        embedding_result = create_user_profile_embedding(new_user)
-        logger.info(f"📊 Embedding creation: {embedding_result}")
-
-        # Generate JWT tokens
-        from jwt_utils import create_access_token, create_refresh_token
-        access_token = create_access_token(user_id)
-        refresh_token = create_refresh_token(user_id)
-
-        # Generate first feed group synchronously
-        logger.info(f"🔄 Generating first feed for user {user_id}")
-        from profile_embeddings import generate_ai_groups, find_users_from_ai_description
-
-        first_group = None
-        feed_ready = False
-
-        try:
-            groups = generate_ai_groups(user_id)
-            if groups and len(groups) > 0:
-                first_description = groups[0]
-                matched_users = find_users_from_ai_description(first_description, top_k=5)
-
-                first_group = {
-                    "description": first_description,
-                    "users": matched_users
-                }
-                feed_ready = True
-                logger.info(f"✅ First feed group generated")
-        except Exception as feed_error:
-            logger.error(f"❌ Error generating feed: {feed_error}")
-
         db.close()
+
+        # Generate redis_id
+        redis_id = str(uuid.uuid4())
+
+        # Set initial status in Redis
+        r.set(f"signup:{redis_id}", json.dumps({
+            "status": "processing",
+            "message": "Creating your account..."
+        }), ex=600)  # 10 min expiry
+
+        # Start background task to create user
+        async def create_user_background():
+            try:
+                from datetime import datetime
+
+                db = SessionLocal()
+
+                # Hash password
+                hashed_password = bcrypt.hashpw(
+                    request.password.encode('utf-8'),
+                    bcrypt.gensalt()
+                ).decode('utf-8')
+
+                # Get cartoon avatar for females
+                profile_image_url = None
+                if request.gender.lower() == 'female':
+                    from avatar_helper import get_cartoon_avatar
+                    profile_image_url = get_cartoon_avatar(request.gender, request.ethnicity)
+                    logger.info(f"🎨 Selected avatar: {profile_image_url}")
+
+                # Create user
+                user_id = str(uuid.uuid4())
+                new_user = User(
+                    id=user_id,
+                    username=request.username,
+                    email=request.email,
+                    name=request.name,
+                    password=hashed_password,
+                    occupation=request.occupation,
+                    gender=request.gender,
+                    ethnicity=request.ethnicity,
+                    city=request.city,
+                    profile_image=profile_image_url,
+                    created_at=datetime.utcnow()
+                )
+
+                db.add(new_user)
+                db.commit()
+                db.refresh(new_user)
+
+                logger.info(f"✅ Created user {user_id} (@{request.username})")
+
+                # Create profile embedding
+                from profile_embeddings import create_user_profile_embedding
+                embedding_result = create_user_profile_embedding(new_user)
+                logger.info(f"📊 Embedding creation: {embedding_result}")
+
+                # Generate JWT tokens
+                from jwt_utils import create_access_token, create_refresh_token
+                access_token = create_access_token(user_id)
+                refresh_token = create_refresh_token(user_id)
+
+                # Generate first feed group
+                logger.info(f"🔄 Generating first feed for user {user_id}")
+                from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+
+                first_group = None
+                feed_ready = False
+
+                try:
+                    groups = generate_ai_groups(user_id)
+                    if groups and len(groups) > 0:
+                        first_description = groups[0]
+                        matched_users = find_users_from_ai_description(first_description, top_k=5)
+
+                        first_group = {
+                            "description": first_description,
+                            "users": matched_users
+                        }
+                        feed_ready = True
+                        logger.info(f"✅ First feed group generated")
+                except Exception as feed_error:
+                    logger.error(f"❌ Error generating feed: {feed_error}")
+
+                db.close()
+
+                # Update Redis with completed data
+                r.set(f"signup:{redis_id}", json.dumps({
+                    "status": "ready",
+                    "user_id": user_id,
+                    "name": new_user.name,
+                    "username": new_user.username,
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "profile_image": profile_image_url,
+                    "feed_ready": feed_ready,
+                    "first_group": first_group
+                }), ex=600)
+
+                logger.info(f"✅ Signup complete for {user_id}, stored in Redis")
+
+            except Exception as e:
+                logger.error(f"❌ Error in background signup: {e}")
+                r.set(f"signup:{redis_id}", json.dumps({
+                    "status": "error",
+                    "error": str(e)
+                }), ex=600)
+                if 'db' in locals():
+                    db.close()
+
+        # Start background task
+        asyncio.create_task(create_user_background())
+
+        logger.info(f"✅ Signup initiated with redis_id: {redis_id}")
 
         return {
             "status": "success",
-            "user_id": user_id,
-            "name": new_user.name,
-            "username": new_user.username,
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "profile_image": profile_image_url,
-            "feed_ready": feed_ready,
-            "first_group": first_group
+            "redis_id": redis_id
         }
 
     except Exception as e:
-        logger.error(f"❌ Error creating user: {e}")
-        if 'db' in locals():
-            db.close()
+        logger.error(f"❌ Error initiating signup: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.get("/signup/poll/{redis_id}")
+async def poll_signup_status(redis_id: str):
+    """
+    Poll signup status by redis_id.
+
+    Returns:
+    - If processing: {"status": "processing", "message": "..."}
+    - If ready: {"status": "ready", "user_id": "...", "access_token": "...", ...}
+    - If error: {"status": "error", "error": "..."}
+    """
+    try:
+        signup_data_str = r.get(f"signup:{redis_id}")
+
+        if not signup_data_str:
+            return {
+                "status": "not_found",
+                "message": "Signup session not found or expired"
+            }
+
+        signup_data = json.loads(signup_data_str)
+        return signup_data
+
+    except Exception as e:
+        logger.error(f"❌ Error polling signup: {e}")
         return {
             "status": "error",
             "error": str(e)

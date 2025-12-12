@@ -249,13 +249,13 @@ def finalize_simple_signup(session_id: str) -> str:
             access_token = create_access_token(user_id)
             refresh_token = create_refresh_token(user_id)
 
-            # Generate first feed group synchronously
+            # Generate first feed group synchronously (only 1 group)
             logger.info(f"🔄 Generating first feed for user {user_id}")
             from profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
             try:
-                # Generate first AI group description
-                groups = generate_ai_groups(user_id)
+                # Generate first AI group description (only 1 group)
+                groups = generate_ai_groups(user_id, count=1)
                 if groups and len(groups) > 0:
                     first_description = groups[0]  # This is a string
 

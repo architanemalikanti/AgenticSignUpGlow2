@@ -1129,7 +1129,7 @@ async def simple_signup(request: SimpleSignupRequest):
                 access_token = create_access_token(user_id)
                 refresh_token = create_refresh_token(user_id)
 
-                # Generate first feed group
+                # Generate first feed group (only 1 group)
                 logger.info(f"🔄 Generating first feed for user {user_id}")
                 from profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
@@ -1137,7 +1137,7 @@ async def simple_signup(request: SimpleSignupRequest):
                 feed_ready = False
 
                 try:
-                    groups = generate_ai_groups(user_id)
+                    groups = generate_ai_groups(user_id, count=1)  # Generate only 1 group
                     if groups and len(groups) > 0:
                         first_description = groups[0]
                         matched_users = find_users_from_ai_description(first_description, top_k=5)

@@ -63,16 +63,17 @@ def create_user_profile_embedding(user):
         return f"Error creating embedding: {str(e)}"
 
 
-def generate_ai_groups(user_id: str) -> list:
+def generate_ai_groups(user_id: str, count: int = 5) -> list:
     """
-    Generate 5 AI-generated group descriptions for finding similar users.
+    Generate AI-generated group descriptions for finding similar users.
     Groups are personalized based on the user's profile.
 
     Args:
         user_id: The user requesting recommendations (for personalization)
+        count: Number of groups to generate (default 5)
 
     Returns:
-        List of 5 group description strings
+        List of group description strings
     """
     from anthropic import Anthropic
     from database.db import SessionLocal
@@ -130,7 +131,7 @@ FORMAT:
 line 1: group description (5–10 words)
 line 2: short playful tag (3–5 words)
 
-Always return ONLY a JSON array of 5 strings, no other text.
+Always return ONLY a JSON array of {count} strings, no other text.
 
 Format: ["description 1", "description 2", ...]"""
 
@@ -148,26 +149,28 @@ Format: ["description 1", "description 2", ...]"""
             end = content.rfind("]") + 1
             json_str = content[start:end]
             groups = json.loads(json_str)
-            return groups[:5]
+            return groups[:count]
         else:
             # Fallback
-            return [
+            fallback_groups = [
                 "college students exploring their interests",
                 "young professionals in tech",
                 "creative types in the city",
                 "people passionate about travel",
                 "students balancing work and life"
             ]
+            return fallback_groups[:count]
 
     except Exception as e:
         print(f"Error generating AI groups: {e}")
-        return [
+        fallback_groups = [
             "college students exploring their interests",
             "young professionals in tech",
             "creative types in the city",
             "people passionate about travel",
             "students balancing work and life"
         ]
+        return fallback_groups[:count]
 
 
 def find_users_from_ai_description(description: str, top_k: int = 5) -> list:

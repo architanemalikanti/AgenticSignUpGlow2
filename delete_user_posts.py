@@ -1,118 +1,64 @@
 """
-Script to delete all posts/eras for a specific user.
-Usage: python delete_user_posts.py <username>
+Script to delete all posts for specific users by name.
+Usage: python delete_user_posts.py
 """
 
-import sys
-from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
-import os
+from database.db import SessionLocal
+from database.models import User, Post, PostMedia
+from sqlalchemy import or_
 
-load_dotenv()
+def delete_posts_for_users(names):
+    """Delete all posts for users with given names."""
+    db = SessionLocal()
 
-def delete_user_posts(username):
-    """Delete all posts/eras for the given username."""
+    try:
+        # Find users
+        users = db.query(User).filter(
+            or_(*[User.name.ilike(f'%{name}%') for name in names])
+        ).all()
 
-    engine = create_engine(os.getenv('DATABASE_URL'))
-
-    with engine.connect() as conn:
-        # Find the user
-        result = conn.execute(
-            text('SELECT id, username, name FROM users WHERE username = :username'),
-            {'username': username}
-        )
-        user = result.fetchone()
-
-        if not user:
-            print(f'❌ User "{username}" not found')
-            print('\nAvailable users:')
-            result = conn.execute(text('SELECT username, name FROM users'))
-            for u in result.fetchall():
-                print(f'  - {u[0]} ({u[1]})')
-            return False
-
-        user_id, username, name = user
-        print(f'✅ Found user: {username} ({name})')
-        print(f'   User ID: {user_id}')
-
-        # Check if posts table exists
-        result = conn.execute(text("""
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema = 'public'
-            AND table_name IN ('posts', 'eras')
-        """))
-        tables = [row[0] for row in result.fetchall()]
+        if not users:
+            print("❌ No users found with those names")
+            return
 
         total_deleted = 0
 
-        # Delete from posts table if it exists
-        if 'posts' in tables:
-            result = conn.execute(
-                text('SELECT COUNT(*) FROM posts WHERE user_id = :user_id'),
-                {'user_id': user_id}
-            )
-            count = result.fetchone()[0]
+        for user in users:
+            print(f"\n👤 User: {user.name} (@{user.username}) - ID: {user.id}")
 
-            if count > 0:
-                print(f'\n📝 Found {count} posts in "posts" table')
+            # Get all posts for this user
+            posts = db.query(Post).filter(Post.user_id == user.id).all()
 
-                # First, delete associated media from post_media table
-                result = conn.execute(text("""
-                    SELECT COUNT(*) FROM post_media
-                    WHERE post_id IN (SELECT id FROM posts WHERE user_id = :user_id)
-                """), {'user_id': user_id})
-                media_count = result.fetchone()[0]
+            if not posts:
+                print(f"   No posts to delete")
+                continue
 
-                if media_count > 0:
-                    print(f'📸 Deleting {media_count} associated media items first...')
-                    conn.execute(text("""
-                        DELETE FROM post_media
-                        WHERE post_id IN (SELECT id FROM posts WHERE user_id = :user_id)
-                    """), {'user_id': user_id})
-                    conn.commit()
-                    print(f'✅ Deleted {media_count} media items')
+            print(f"   Found {len(posts)} posts")
 
-                # Now delete the posts
-                conn.execute(
-                    text('DELETE FROM posts WHERE user_id = :user_id'),
-                    {'user_id': user_id}
-                )
-                conn.commit()
-                print(f'✅ Deleted {count} posts')
-                total_deleted += count
+            # Delete each post (cascade will delete post_media)
+            for post in posts:
+                print(f"   🗑️  Deleting post: {post.id} - {post.title}")
+                db.delete(post)
 
-        # Delete from eras table if it exists
-        if 'eras' in tables:
-            result = conn.execute(
-                text('SELECT COUNT(*) FROM eras WHERE user_id = :user_id'),
-                {'user_id': user_id}
-            )
-            count = result.fetchone()[0]
+            total_deleted += len(posts)
 
-            if count > 0:
-                print(f'\n📝 Found {count} eras in "eras" table')
-                conn.execute(
-                    text('DELETE FROM eras WHERE user_id = :user_id'),
-                    {'user_id': user_id}
-                )
-                conn.commit()
-                print(f'✅ Deleted {count} eras')
-                total_deleted += count
+        # Commit all deletions
+        db.commit()
+        print(f"\n✅ Successfully deleted {total_deleted} posts!")
 
-        if total_deleted == 0:
-            print(f'\n✨ No posts found for user "{username}"')
-        else:
-            print(f'\n🎉 Successfully deleted {total_deleted} total posts/eras for "{username}"')
-
-        return True
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error deleting posts: {e}")
+    finally:
+        db.close()
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print('Usage: python delete_user_posts.py <username>')
-        print('Example: python delete_user_posts.py architavn')
-        sys.exit(1)
+    print("=" * 60)
+    print("  Delete Posts for Angelica and Hayley")
+    print("=" * 60)
+    print()
 
-    username = sys.argv[1]
-    delete_user_posts(username)
+    delete_posts_for_users(['angelica', 'hayley'])
+
+    print()

@@ -571,10 +571,16 @@ async def post_stream(
     - media_urls: Optional JSON string of base64 encoded images
     """
 
+    # Log media_urls received
+    logger.info(f"📸 /post/stream received media_urls: {media_urls}")
+    logger.info(f"📸 media_urls type: {type(media_urls)}, length: {len(media_urls) if media_urls else 0}")
+
     async def event_gen():
         # Check if images were uploaded
         has_images = media_urls and media_urls != "null" and media_urls != "[]"
         images_context = "The user has already uploaded their images." if has_images else "The user hasn't uploaded images yet."
+
+        logger.info(f"📸 has_images: {has_images}, images_context: {images_context}")
 
         # Build the system prompt
         post_prompt = f"""You are a friendly assistant helping users create social media posts.

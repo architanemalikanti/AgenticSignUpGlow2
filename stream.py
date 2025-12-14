@@ -1018,6 +1018,100 @@ async def send_verification_code(request: VerificationCodeRequest):
         }
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/auth/login")
+async def login(request: LoginRequest):
+    """
+    Login endpoint - verifies username and password, returns user data and tokens.
+
+    Request body:
+    {
+        "username": "architavn",
+        "password": "password123"
+    }
+
+    Returns:
+    {
+        "status": "success",
+        "user_id": "...",
+        "name": "Archita",
+        "username": "architavn",
+        "access_token": "...",
+        "refresh_token": "...",
+        "profile_image": "..."
+    }
+    """
+    import bcrypt
+    from database.db import SessionLocal
+    from database.models import User
+
+    try:
+        db = SessionLocal()
+
+        # Find user by username
+        user = db.query(User).filter(User.username == request.username).first()
+
+        if not user:
+            db.close()
+            return {
+                "status": "error",
+                "error": "Invalid username or password"
+            }
+
+        # Verify password
+        if not user.password:
+            db.close()
+            return {
+                "status": "error",
+                "error": "Invalid username or password"
+            }
+
+        # Check if password matches (bcrypt)
+        password_matches = bcrypt.checkpw(
+            request.password.encode('utf-8'),
+            user.password.encode('utf-8')
+        )
+
+        if not password_matches:
+            db.close()
+            return {
+                "status": "error",
+                "error": "Invalid username or password"
+            }
+
+        # Generate JWT tokens
+        from jwt_utils import create_access_token, create_refresh_token
+        access_token = create_access_token(user.id)
+        refresh_token = create_refresh_token(user.id)
+
+        db.close()
+
+        logger.info(f"✅ User {user.username} logged in successfully")
+
+        return {
+            "status": "success",
+            "user_id": user.id,
+            "name": user.name,
+            "username": user.username,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "profile_image": user.profile_image if user.profile_image else None
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error during login: {e}")
+        if 'db' in locals():
+            db.close()
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 class SimpleSignupRequest(BaseModel):
     username: str
     email: str

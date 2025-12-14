@@ -218,20 +218,37 @@ async def create_post_in_background(redis_id: str, user_id: str, title: str, cap
         try:
             client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-            prompt = f"""Generate a short, funny, gen-z announcement that {poster_name} just posted.
+            prompt = f"""Generate a short, iconic notification that {poster_name} just posted on social media.
 
-Style: lowercase, chaotic, excited, funny, varied vibes
-Length: 5-10 words max
+CRITICAL RULES:
+- Must be lowercase only
+- Must be dry, deadpan, internet humor
+- NO cringe phrases like "periodt", "slay", "serving"
+- NO emojis (except 🚨 ⏰ if it fits)
+- Length: 3-7 words max
+- Pick ONE random style from the examples below
 
-Examples of DIFFERENT vibes:
-- "babe wake up, {poster_name} just posted"
-- "{poster_name} is back with the content"
-- "everyone stop what you're doing. {poster_name} posted"
-- "{poster_name}'s feed update just dropped"
-- "new {poster_name} post alert 🚨"
-- "{poster_name} said let me feed y'all real quick"
+EXACT STYLE EXAMPLES (use these vibes, replace name):
+- "babe wake up {poster_name} just posted"
+- "babe… it happened ({poster_name} posted)"
+- "emergency 🚨 {poster_name} posted"
+- "stop scrolling. {poster_name} posted."
+- "breaking: {poster_name} just posted"
+- "this is not a drill. {poster_name} posted"
+- "babe come here. {poster_name} posted."
+- "everyone be quiet… {poster_name} posted"
+- "{poster_name} posted. act normal."
+- "{poster_name} just posted and the timeline shifted"
+- "ur honor, {poster_name} posted"
+- "don't ask questions. {poster_name} posted."
+- "clock it ⏰ {poster_name} just posted"
+- "{poster_name} posted. we won."
+- "main character alert: {poster_name} posted"
+- "{poster_name} just posted btw. yeah."
+- "soft launch? no. {poster_name} posted."
+- "{poster_name} posted and suddenly i'm paying attention"
 
-Make it sound DIFFERENT each time. Return ONLY the sentence, no quotes or extra text."""
+Return ONLY the sentence, no quotes, no explanation."""
 
             response = client.messages.create(
                 model="claude-sonnet-4-20250514",

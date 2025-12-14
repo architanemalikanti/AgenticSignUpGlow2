@@ -185,6 +185,8 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
     Returns:
         List of user dicts with profile info and most recent post
     """
+    import random
+
     try:
         # Step 1: Convert description to embedding
         response = openai_client.embeddings.create(
@@ -193,14 +195,16 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
         )
         query_embedding = response.data[0].embedding
 
-        # Step 2: Query Pinecone for similar user embeddings
+        # Step 2: Query Pinecone for MORE users than needed (for diversity)
+        # Get 30 users, then randomly sample 5 to avoid showing same users
+        fetch_count = min(top_k * 6, 30)  # Fetch 6x more for randomization
         results = index.query(
             vector=query_embedding,
-            top_k=top_k,
+            top_k=fetch_count,
             include_metadata=True
         )
 
-        # Step 3: Format results with most recent post
+        # Step 3: Format results with most recent post (only include users who have posts)
         from database.db import SessionLocal
         from database.models import Post, PostMedia
         from sqlalchemy import desc
@@ -213,11 +217,11 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
             user_id = user_data.get("user_id")
 
             # Get most recent post for this user
-            most_recent_post = None
             post = db.query(Post).filter(
                 Post.user_id == user_id
             ).order_by(desc(Post.created_at)).first()
 
+            # ONLY include users who have posted
             if post:
                 # Get media for this post
                 media_urls = [m.media_url for m in post.media]
@@ -231,20 +235,25 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
                     "created_at": post.created_at.isoformat() if post.created_at else None
                 }
 
-            matched_users.append({
-                "user_id": user_id,
-                "name": user_data.get("name"),
-                "username": user_data.get("username", ""),
-                "city": user_data.get("city"),
-                "occupation": user_data.get("occupation"),
-                "gender": user_data.get("gender"),
-                "ethnicity": user_data.get("ethnicity"),
-                "profile_image": user_data.get("profile_image", ""),
-                "similarity_score": match['score'],
-                "most_recent_post": most_recent_post
-            })
+                matched_users.append({
+                    "user_id": user_id,
+                    "name": user_data.get("name"),
+                    "username": user_data.get("username", ""),
+                    "city": user_data.get("city"),
+                    "occupation": user_data.get("occupation"),
+                    "gender": user_data.get("gender"),
+                    "ethnicity": user_data.get("ethnicity"),
+                    "profile_image": user_data.get("profile_image", ""),
+                    "similarity_score": match['score'],
+                    "most_recent_post": most_recent_post
+                })
 
         db.close()
+
+        # Step 4: Randomly sample top_k users from the results for diversity
+        if len(matched_users) > top_k:
+            matched_users = random.sample(matched_users, top_k)
+
         return matched_users
 
     except Exception as e:

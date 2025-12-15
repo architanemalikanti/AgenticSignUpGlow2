@@ -926,7 +926,6 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
         return {
             "status": "success",
             "feed": mixed_feed,
-            "has_more_posts": len(friend_posts_data) >= limit,  # True if there might be more friend posts
             "offset": offset,
             "limit": limit
         }

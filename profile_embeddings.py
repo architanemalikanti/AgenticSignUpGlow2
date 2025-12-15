@@ -91,53 +91,74 @@ def generate_ai_groups(user_id: str, count: int = 5) -> list:
             user_city = "the city"
             user_occupation = "students"
             user_gender = "people"
+            user_ethnicity = ""
         else:
             user_city = user.city or "the city"
             user_occupation = user.occupation or "students"
             user_gender = user.gender or "people"
+            user_ethnicity = user.ethnicity or ""
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = f"""You generate interesting, funny, glow-coded "archetype groups" that feel like characters the user might see in their world.
-NEVER generic tech-only. NEVER repetitive. Always diverse, chaotic, and scroll-stopping.
+        prompt = f"""Generate {count} ultra-personalized, useful group recommendations for a user.
 
-Your universe MUST include:
+USER PROFILE:
+- City: {user_city}
+- Occupation: {user_occupation}
+- Gender: {user_gender}
+- Ethnicity: {user_ethnicity}
 
-1. UNIVERSAL ARCHETYPES (always relevant)
-   the next hasan minhaj, the next taylor swift, brown girl CEOs killing it, black founders slaying, investment banking girlies.
+PERSONALIZATION RULES (follow ALL of these):
 
-2. SF ARCHETYPES (for SF users)
-   berkeley kids crying over 61a, stanford kids building the next google, soma engineers, boba founders, matcha girlies, angel investors looking to invest, yc, a16z, b2b ai saas.
+1. USEFUL CONTENT - Prioritize groups that help the user:
+   - Dating: people they might want to date in their city
+   - Career: mentors, angel investors, people in their field, networking opportunities
+   - Friends: people with similar interests in their city
+   - Cultural: people from their background (but also show diverse backgrounds!)
 
-3. CULTURAL ARCHETYPES (based on user ethnicity)
-   shaadi season girlies, indian aunties asking with love, next zarna garg.
+2. CITY-SPECIFIC (must adapt to user's city):
+   - SF: startup founders, yc, a16z, berkeley/stanford, tech, boba, matcha, angel investors, soma engineers
+   - NYC: finance, consulting, fashion, media, columbia/nyu, bagels, rooftop szn
+   - LA: entertainment, influencers, usc/ucla, beach culture, content creators
+   - Other cities: adapt accordingly
 
-4. GENDER-BASED ARCHETYPES
-   female investors funding cracked female founders, girlboss founders.
+3. ETHNICITY-AWARE (but diverse):
+   - If South Asian: include desi content (shaadi season, indian aunties, bollywood references, desi slang)
+   - If Black: include Black excellence content (Black founders, HBCU culture, Black girl magic)
+   - If Latino: include Latino culture content
+   - IMPORTANT: Also show 60% other ethnicities for diversity - everyone should see diverse content!
 
-5. CAREER ARCHETYPES
-   startup engineers (but not too often), consultants making decks emotionally, ibanking girlies killing it.
+4. OCCUPATION-BASED:
+   - Students: college friends, study groups, internship hunting, campus culture
+   - Engineers: other engineers, startup founders, tech leads
+   - Finance: ibanking girlies, consultants, PE/VC people
+   - Artists: creatives, musicians, designers
 
-6. DATING ARCHETYPES
-   sf men / yc founders who will pay for your meal and respect your ambition (respectful only)
-   soft men who love to listen to ur yapping
+5. GENDER-SPECIFIC (where relevant):
+   - Female: girlboss founders, female investors, girls who support girls
+   - Male: soft men, respectful daters, male mentors
+   - Show cross-gender content for dating/networking
+
+6. DATING ARCHETYPES (always include 1-2):
+   - Based on city + values (ambitious, respectful, soft, nerdy, artsy)
+   - Example: "sf founders who'll pay for dinner and respect ur ambition"
+   - Example: "soft men who love listening to ur yapping"
 
 STYLE:
-- cute, aesthetic, warm, funny, chaotic-but-safe
-- no burnout, no crying, no trauma
 - lowercase only
+- warm, funny, aesthetic, chaotic-but-safe
+- no burnout, crying, or trauma
+- 5-10 words max
 
-FORMAT:
-line 1: group description (5–10 words)
-line 2: short playful tag (3–5 words)
+OUTPUT FORMAT:
+Return ONLY a JSON array of {count} group descriptions.
+Example: ["brown girl ceos in sf", "stanford kids building the next google", "soft men who love to listen"]
 
-Always return ONLY a JSON array of {count} strings, no other text.
-
-Format: ["description 1", "description 2", ...]"""
+Generate NOW:"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=300,
+            max_tokens=500,  # Increased for more personalized responses
             messages=[{"role": "user", "content": prompt}]
         )
 

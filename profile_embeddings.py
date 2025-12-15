@@ -100,7 +100,7 @@ def generate_ai_groups(user_id: str, count: int = 5) -> list:
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = f"""Generate {count} ultra-personalized, useful group recommendations for a user.
+        prompt = f"""Generate {count} ICONIC, specific, entertaining group recommendations. Make the user stop scrolling.
 
 USER PROFILE:
 - City: {user_city}
@@ -108,53 +108,79 @@ USER PROFILE:
 - Gender: {user_gender}
 - Ethnicity: {user_ethnicity}
 
-PERSONALIZATION RULES (follow ALL of these):
+CRITICAL RULES:
 
-1. USEFUL CONTENT - Prioritize groups that help the user:
-   - Dating: people they might want to date in their city
-   - Career: mentors, angel investors, people in their field, networking opportunities
-   - Friends: people with similar interests in their city
-   - Cultural: people from their background (but also show diverse backgrounds!)
+1. BE HYPER-SPECIFIC & USEFUL
+   ❌ BAD: "engineers in sf"
+   ✅ GOOD: "soft boys who will cook for u while u debug code"
 
-2. CITY-SPECIFIC (must adapt to user's city):
-   - SF: startup founders, yc, a16z, berkeley/stanford, tech, boba, matcha, angel investors, soma engineers
-   - NYC: finance, consulting, fashion, media, columbia/nyu, bagels, rooftop szn
-   - LA: entertainment, influencers, usc/ucla, beach culture, content creators
-   - Other cities: adapt accordingly
+   ❌ BAD: "diverse professionals brunching and networking"
+   ✅ GOOD: "angel investors who will fund ur unhinged startup idea"
 
-3. ETHNICITY-AWARE (but diverse):
-   - If South Asian: include desi content (shaadi season, indian aunties, bollywood references, desi slang)
-   - If Black: include Black excellence content (Black founders, HBCU culture, Black girl magic)
-   - If Latino: include Latino culture content
-   - IMPORTANT: Also show 60% other ethnicities for diversity - everyone should see diverse content!
+2. MAKE IT FUNNY/ENTERTAINING/EYE-OPENING
+   - Add specific details that make it relatable
+   - Use humor, not corporate speak
+   - Make it scroll-stopping
 
-4. OCCUPATION-BASED:
-   - Students: college friends, study groups, internship hunting, campus culture
-   - Engineers: other engineers, startup founders, tech leads
-   - Finance: ibanking girlies, consultants, PE/VC people
-   - Artists: creatives, musicians, designers
+   Examples:
+   - "brown girl ceos in sf absolutely killing it...future forbes 30u30"
+   - "the next taylor swift in ur era wow...the rising stars"
+   - "stanford dropout kids who became billionaires before u graduated"
+   - "soft engineer boys who'll explain distributed systems while making u pasta"
+   - "emotionally available men who text back and plan actual dates"
+   - "girls who'll send u voice memos analyzing ur situationship"
+   - "boys who think ur career ambitions are attractive not intimidating"
 
-5. GENDER-SPECIFIC (where relevant):
-   - Female: girlboss founders, female investors, girls who support girls
-   - Male: soft men, respectful daters, male mentors
-   - Show cross-gender content for dating/networking
+3. RELATE IT TO THE USER'S LIFE
+   - Dating: SPECIFIC types they'd want (soft boys, ambitious girls, respectful founders)
+   - Career: People who can ACTUALLY help (investors, mentors in their field, successful people in their city)
+   - Friends: Shared struggles/interests that are SPECIFIC
+   - Cultural: Not generic diversity - specific cultural vibes
 
-6. DATING ARCHETYPES (always include 1-2):
-   - Based on city + values (ambitious, respectful, soft, nerdy, artsy)
-   - Example: "sf founders who'll pay for dinner and respect ur ambition"
-   - Example: "soft men who love listening to ur yapping"
+4. CITY-SPECIFIC CONTENT (adapt to user's city):
+   - SF: yc dropout millionaires, berkeley kids speedrunning leetcode, boba addicts building b2b saas, founders who tweet at 3am
+   - NYC: finance bros who secretly love poetry, columbia kids networking at rooftop bars, bagel snobs who know every spot
+   - LA: tiktok creators pulling 10M views, usc film kids who might be the next a24, sunset chasers with good playlists
+
+5. ETHNICITY-AWARE (make it specific, not generic):
+   - South Asian: "desi girlies balancing shaadi pressure and startup life", "brown kids whose parents finally understand their job"
+   - Black: "black founders getting funded and changing the game", "hbcu kids running circles around ivy leagues"
+   - But ALSO show 50-60% diverse content so everyone sees variety
+
+6. OCCUPATION-BASED (make it specific to their struggles/wins):
+   - Engineers: "10x engineers who touch grass", "swe's who escaped faang for startups"
+   - Students: "cs kids surviving on free pizza and ambition", "college kids building the next unicorn from their dorm"
+   - Finance: "ibanking survivors who made it out alive", "consultants making slides at 2am but thriving"
+
+7. ALWAYS INCLUDE 1-2 DATING GROUPS (make it OBVIOUS it's dating):
+   - "soft boys who'll cook for u and listen to ur rants after standup"
+   - "girls who'll take u on museum dates and debate philosophy with u"
+   - "nerdy boys who think ur debugging skills are attractive"
+   - "sf founders who'll respect ur ambition and actually pay for dinner"
+   - "boys with good music taste who'll make u personalized playlists"
+   - "girls who send u memes at 3am and understand ur chaos"
+   - "emotionally available men who want a partnership not a situationship"
+   - "ambitious girls building startups who want someone equally driven"
+   - "boys who'll get excited when u explain ur code to them"
+   - "girls who respect the grind and won't make u choose career or love"
+
+BANNED PHRASES (never use these):
+- "diverse professionals"
+- "networking and brunching"
+- "exploring opportunities"
+- "building connections"
+- "match your energy" / "match ur energy"
+- "hot" (use: attractive, into, excited about, etc)
+- anything corporate/boring/generic/vague influencer speak
 
 STYLE:
 - lowercase only
-- warm, funny, aesthetic, chaotic-but-safe
-- no burnout, crying, or trauma
-- 5-10 words max
+- iconic, funny, specific, scroll-stopping
+- 5-12 words max
+- feel like a friend describing someone cool
 
-OUTPUT FORMAT:
-Return ONLY a JSON array of {count} group descriptions.
-Example: ["brown girl ceos in sf", "stanford kids building the next google", "soft men who love to listen"]
-
-Generate NOW:"""
+Return ONLY JSON array of {count} strings:
+["description 1", "description 2", ...]"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

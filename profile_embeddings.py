@@ -182,11 +182,26 @@ BANNED PHRASES (never use these):
 STYLE:
 - lowercase only
 - iconic, funny, specific, scroll-stopping
-- 5-12 words max
-- feel like a friend describing someone cool
+- TWO LINES per description (separated by newline \\n):
+  * Line 1: Main description (5-10 words)
+  * Line 2: Funny/wholesome/ironic detail (3-8 words) - NOT mean, NOT judgmental
 
-Return ONLY JSON array of {count} strings:
-["description 1", "description 2", ...]"""
+VIBE CHECK FOR LINE 2:
+✅ GOOD (impressive, aspirational, wholesome, or genuinely funny):
+- "respectful kings who actually plan dates\\nand text back within the hour"
+- "brown girl ceos in sf absolutely killing it\\nfuture forbes 30u30 calling it now"
+- "soft boys who'll listen to ur rants\\nand remember every detail u said"
+- "stanford kids building the next unicorn\\nbootstrapped from their dorm room grinding 24/7"
+- "engineers who escaped faang for startups\\nraised their series a last month"
+
+❌ BAD (apologetic, making excuses, not impressive, mean):
+- "men who will cook for u\\nactually they js order doordash but its the thought" ← making excuses, not impressive
+- "building unicorns\\nfunded by their parents credit card but we support" ← that's NOT okay, not impressive
+- "stanford dropouts who became billionaires\\nbefore u even graduated lol" ← mean to the user
+- anything that contradicts the first line or makes it less impressive
+
+Return ONLY JSON array of {count} strings (each string has \\n for line break):
+["line1\\nline2", "line1\\nline2", ...]"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

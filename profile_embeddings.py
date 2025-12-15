@@ -137,10 +137,20 @@ CRITICAL RULES:
    - Friends: Shared struggles/interests that are SPECIFIC
    - Cultural: Not generic diversity - specific cultural vibes
 
-4. CITY-SPECIFIC CONTENT (adapt to user's city):
-   - SF: yc dropout millionaires, berkeley kids speedrunning leetcode, boba addicts building b2b saas, founders who tweet at 3am
-   - NYC: finance bros who secretly love poetry, columbia kids networking at rooftop bars, bagel snobs who know every spot
-   - LA: tiktok creators pulling 10M views, usc film kids who might be the next a24, sunset chasers with good playlists
+4. CITY-SPECIFIC CONTENT - SHOW THE CULTURE (hyper-specific to their city):
+
+   SF (be VERY specific - this is the culture):
+   - Tech: yc founders, nvidia interns, meta escapees, stripe engineers, openai researchers
+   - Influencers: SF tech influencers, Instagram influencers documenting SF life
+   - Community: nob hill run club runners, SF dancers, marina girls, mission creatives
+   - Students: berkeley cs kids, stanford dropouts, class of 2025/2026 interns
+   - Career: female VCs who invest in unhinged ideas, brown girl ceos manifesting forbes 30u30
+   - Dating: all races/types of men (soft men, south asian men, ibanking men, white men, Black men, Latino men, nerdy boys, etc)
+   - Random: people who know the best matcha spots, boba addicts, sourdough bread snobs
+
+   NYC: finance bros with poetry obsessions, columbia kids at rooftop bars, bagel connoisseurs, fashion week survivors
+
+   LA: tiktok creators hitting 10M, usc film kids making a24-level stuff, sunset chasers with insane playlists
 
 5. ETHNICITY-AWARE (make it specific, not generic):
    - South Asian: "desi girlies balancing shaadi pressure and startup life", "brown kids whose parents finally understand their job"
@@ -152,23 +162,28 @@ CRITICAL RULES:
    - Students: "cs kids surviving on free pizza and ambition", "college kids building the next unicorn from their dorm"
    - Finance: "ibanking survivors who made it out alive", "consultants making slides at 2am but thriving"
 
-7. ALWAYS INCLUDE 1-2 DATING GROUPS (ADAPT TO USER'S GENDER):
+7. DATING DIVERSITY - SHOW ALL TYPES (ADAPT TO USER'S GENDER):
 
-   IF USER IS FEMALE (show them MEN they'd want to date):
-   - "soft boys who'll cook for u and listen to ur rants after standup"
-   - "nerdy boys who think ur debugging skills are attractive"
-   - "sf founders who'll respect ur ambition and actually pay for dinner"
-   - "boys with good music taste who'll make u personalized playlists"
-   - "emotionally available men who want a partnership not a situationship"
-   - "boys who'll get excited when u explain ur code to them"
+   IF USER IS FEMALE (show MEN of ALL races/personalities they'd want to date):
+   - Soft men: "soft boys who'll cook for u and listen to ur rants after standup"
+   - South Asian: "desi boys who understand family pressure and still choose u"
+   - White men: "white boys with emotional intelligence who read books for fun"
+   - Black men: "black men who are ambitious, respectful, and emotionally available"
+   - Latino men: "latino men who'll dance with u and cook family recipes"
+   - Ibanking: "finance bros who'll plan thoughtful dates not just expensive ones"
+   - Nerdy: "nerdy boys who think ur debugging skills are attractive"
+   - YC founders: "yc founders who'll respect ur ambition and actually pay for dinner"
 
-   IF USER IS MALE (show them WOMEN they'd want to date):
+   IF USER IS MALE (show WOMEN of ALL races/personalities they'd want to date):
    - "girls who'll take u on museum dates and debate philosophy with u"
+   - "brown girls building empires who want someone equally driven"
+   - "black girls who are intimidatingly smart but also really kind"
+   - "white girls with good music taste who send u playlists"
+   - "asian girls who are ambitious and won't settle for less"
+   - "latina girls who'll match ur energy and introduce u to good food"
    - "girls who send u memes at 3am and understand ur chaos"
-   - "ambitious girls building startups who want someone equally driven"
-   - "girls who respect the grind and won't make u choose career or love"
-   - "girls who match ur nerd energy and binge watch shows with u"
-   - "smart girls who'll debate u on anything and make u think"
+
+   IMPORTANT: Show DIVERSITY in dating - all races, all personality types, all vibes
 
 BANNED PHRASES (never use these):
 - "diverse professionals"
@@ -186,19 +201,28 @@ STYLE:
   * Line 1: Main description (5-10 words)
   * Line 2: Funny/wholesome/ironic detail (3-8 words) - NOT mean, NOT judgmental
 
-VIBE CHECK FOR LINE 2:
-✅ GOOD (impressive, aspirational, wholesome, or genuinely funny):
-- "respectful kings who actually plan dates\\nand text back within the hour"
-- "brown girl ceos in sf absolutely killing it\\nfuture forbes 30u30 calling it now"
-- "soft boys who'll listen to ur rants\\nand remember every detail u said"
-- "stanford kids building the next unicorn\\nbootstrapped from their dorm room grinding 24/7"
-- "engineers who escaped faang for startups\\nraised their series a last month"
+VIBE CHECK FOR LINE 2 - BE UNHINGED, SPICY, DIVERSE, HYPER-LOCAL:
+✅ GOOD (impressive + unhinged + roast-but-hot + shows culture):
+- "respectful kings who actually plan dates\\ngreen flags only we don't play"
+- "brown girl ceos in sf absolutely killing it\\nfuture forbes 30u30 and they know it"
+- "soft boys who'll listen to ur rants\\nemotionally intelligent men are the new flex"
+- "stanford kids building the next unicorn\\nbootstrapped from their dorm not their trust fund"
+- "engineers who left meta to build cool shit\\nand they're actually shipping code not sitting in meetings"
+- "finance bros with taste\\nthey'll take u to the natural wine bar not fidi steakhouse"
+- "nob hill run club runners\\nthey're faster than u and hotter too"
+- "nvidia interns making 200k\\nand still eating free office snacks for dinner"
+- "SF tech influencers with 50k followers\\ndocumenting every matcha spot in the mission"
+- "class of 2025 interns grinding\\nalready have return offers and side projects"
+- "female VCs who will invest in ur unhinged idea\\nif ur pitch deck slaps"
+- "desi boys who understand family pressure\\nand still choose u over arranged marriage"
+- "black men building generational wealth\\nand looking for a partner not a placeholder"
 
-❌ BAD (apologetic, making excuses, not impressive, mean):
-- "men who will cook for u\\nactually they js order doordash but its the thought" ← making excuses, not impressive
-- "building unicorns\\nfunded by their parents credit card but we support" ← that's NOT okay, not impressive
-- "stanford dropouts who became billionaires\\nbefore u even graduated lol" ← mean to the user
-- anything that contradicts the first line or makes it less impressive
+❌ BAD (apologetic, making excuses, not impressive, contradicts first line):
+- "men who will cook for u\\nactually they js order doordash but its the thought" ← making excuses!
+- "building unicorns\\nfunded by their parents credit card but we support" ← NOT impressive!
+- anything that undercuts the first line or makes it less cool
+
+TONE: unhinged, spicy, roast-but-in-a-hot-way, chaotic, diverse, scroll-stopping
 
 Return ONLY JSON array of {count} strings (each string has \\n for line break):
 ["line1\\nline2", "line1\\nline2", ...]"""

@@ -152,17 +152,23 @@ CRITICAL RULES:
    - Students: "cs kids surviving on free pizza and ambition", "college kids building the next unicorn from their dorm"
    - Finance: "ibanking survivors who made it out alive", "consultants making slides at 2am but thriving"
 
-7. ALWAYS INCLUDE 1-2 DATING GROUPS (make it OBVIOUS it's dating):
+7. ALWAYS INCLUDE 1-2 DATING GROUPS (ADAPT TO USER'S GENDER):
+
+   IF USER IS FEMALE (show them MEN they'd want to date):
    - "soft boys who'll cook for u and listen to ur rants after standup"
-   - "girls who'll take u on museum dates and debate philosophy with u"
    - "nerdy boys who think ur debugging skills are attractive"
    - "sf founders who'll respect ur ambition and actually pay for dinner"
    - "boys with good music taste who'll make u personalized playlists"
-   - "girls who send u memes at 3am and understand ur chaos"
    - "emotionally available men who want a partnership not a situationship"
-   - "ambitious girls building startups who want someone equally driven"
    - "boys who'll get excited when u explain ur code to them"
+
+   IF USER IS MALE (show them WOMEN they'd want to date):
+   - "girls who'll take u on museum dates and debate philosophy with u"
+   - "girls who send u memes at 3am and understand ur chaos"
+   - "ambitious girls building startups who want someone equally driven"
    - "girls who respect the grind and won't make u choose career or love"
+   - "girls who match ur nerd energy and binge watch shows with u"
+   - "smart girls who'll debate u on anything and make u think"
 
 BANNED PHRASES (never use these):
 - "diverse professionals"

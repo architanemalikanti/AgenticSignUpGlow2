@@ -879,23 +879,18 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
 
         db.close()
 
-        # Step 2: Generate AI groups
+        # Step 2: Generate 1 AI group
         from profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
-        # Determine how many AI groups to generate
-        # If we have friend posts: 1 group per 4 posts
-        # If no friend posts: generate 5 groups for infinite scroll
-        num_ai_groups = max(len(friend_posts_data) // 4 + 1, 5) if len(friend_posts_data) < limit else len(friend_posts_data) // 4
+        logger.info(f"🤖 Generating 1 AI group for mixed feed")
 
-        logger.info(f"🤖 Generating {num_ai_groups} AI groups for mixed feed")
-
-        ai_descriptions = generate_ai_groups(user_id)
+        ai_descriptions = generate_ai_groups(user_id, count=1)  # Generate only 1 group
         ai_groups_data = []
 
-        for i, description in enumerate(ai_descriptions[:num_ai_groups]):
-            matched_users = find_users_from_ai_description(description, top_k=5)
+        if ai_descriptions and len(ai_descriptions) > 0:
+            matched_users = find_users_from_ai_description(ai_descriptions[0], top_k=5)
             ai_groups_data.append({
-                "description": description,
+                "description": ai_descriptions[0],
                 "users": matched_users
             })
 

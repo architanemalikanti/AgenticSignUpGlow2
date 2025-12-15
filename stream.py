@@ -842,10 +842,10 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
     try:
         db = SessionLocal()
 
-        # Step 1: Get friend posts (people you follow + your own)
+        # Step 1: Get friend posts (people you follow, NOT your own posts)
         following = db.query(Follow.following_id).filter(Follow.follower_id == user_id).all()
         following_ids = [f[0] for f in following]
-        following_ids.append(user_id)  # Include your own posts
+        # Don't include your own posts - iOS will handle showing them temporarily after posting
 
         friend_posts = db.query(Post).filter(
             Post.user_id.in_(following_ids)

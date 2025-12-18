@@ -278,25 +278,42 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
         List of user dicts with profile info and most recent post
     """
     import random
+    import re
 
     try:
-        # Step 1: Convert description to embedding
+        # Step 1: Parse gender from description
+        description_lower = description.lower()
+        target_gender = None
+
+        # Check for male keywords
+        male_keywords = ['boys', 'bros', 'men', 'guys', 'males', 'dudes', 'kings', 'dads', 'fathers', 'husbands', 'boyfriends']
+        if any(keyword in description_lower for keyword in male_keywords):
+            target_gender = 'male'
+
+        # Check for female keywords (these override male if both present)
+        female_keywords = ['girls', 'girlies', 'women', 'ladies', 'females', 'gals', 'queens', 'moms', 'mothers', 'wives', 'girlfriends']
+        if any(keyword in description_lower for keyword in female_keywords):
+            target_gender = 'female'
+
+        print(f"🔍 Searching for gender: {target_gender or 'any'} (description: {description[:50]}...)")
+
+        # Step 2: Convert description to embedding
         response = openai_client.embeddings.create(
             input=description,
             model="text-embedding-3-small"
         )
         query_embedding = response.data[0].embedding
 
-        # Step 2: Query Pinecone for MORE users than needed (for diversity)
-        # Get 30 users, then randomly sample 5 to avoid showing same users
-        fetch_count = min(top_k * 6, 30)  # Fetch 6x more for randomization
+        # Step 3: Query Pinecone for ALL users, then filter
+        # Fetch more users to account for gender filtering
+        fetch_count = 100  # Fetch many users to ensure we have enough after filtering
         results = index.query(
             vector=query_embedding,
             top_k=fetch_count,
             include_metadata=True
         )
 
-        # Step 3: Format results with most recent post (only include users who have posts)
+        # Step 4: Format results with most recent post (only include users who have posts AND match gender)
         from database.db import SessionLocal
         from database.models import Post, PostMedia
         from sqlalchemy import desc
@@ -307,6 +324,15 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
         for match in results['matches']:
             user_data = match['metadata']
             user_id = user_data.get("user_id")
+            user_gender = user_data.get("gender", "").lower()
+
+            # Filter by gender if specified in description
+            if target_gender:
+                # Normalize gender values
+                if target_gender == 'male' and user_gender not in ['male', 'man', 'boy', 'm']:
+                    continue
+                if target_gender == 'female' and user_gender not in ['female', 'woman', 'girl', 'f']:
+                    continue
 
             # Get most recent post for this user
             post = db.query(Post).filter(
@@ -340,11 +366,17 @@ def find_users_from_ai_description(description: str, top_k: int = 5) -> list:
                     "most_recent_post": most_recent_post
                 })
 
+            # Collect more users than needed for randomization
+            if len(matched_users) >= top_k * 3:
+                break
+
         db.close()
 
-        # Step 4: Randomly sample top_k users from the results for diversity
+        # Step 5: Randomly sample to show variety and ensure all users appear eventually
         if len(matched_users) > top_k:
             matched_users = random.sample(matched_users, top_k)
+
+        print(f"✅ Found {len(matched_users)} users matching description (filtered by gender: {target_gender or 'any'})")
 
         return matched_users
 

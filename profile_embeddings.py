@@ -66,7 +66,7 @@ def create_user_profile_embedding(user):
 def generate_ai_groups(user_id: str, count: int = 5) -> list:
     """
     Generate AI-generated group descriptions for finding similar users.
-    Groups are personalized based on the user's profile.
+    Groups are personalized based on the user's profile with even distribution across categories.
 
     Args:
         user_id: The user requesting recommendations (for personalization)
@@ -79,6 +79,7 @@ def generate_ai_groups(user_id: str, count: int = 5) -> list:
     from database.db import SessionLocal
     from database.models import User
     import json
+    import random
 
     try:
         # Get user's profile to personalize recommendations
@@ -88,19 +89,57 @@ def generate_ai_groups(user_id: str, count: int = 5) -> list:
 
         if not user:
             # Fallback if user not found
-            user_city = "the city"
+            user_city = "sf"
             user_occupation = "students"
-            user_gender = "people"
+            user_gender = "female"
             user_ethnicity = ""
         else:
-            user_city = user.city or "the city"
+            user_city = user.city or "sf"
             user_occupation = user.occupation or "students"
-            user_gender = user.gender or "people"
+            user_gender = user.gender or "female"
             user_ethnicity = user.ethnicity or ""
+
+        # Define categories for even distribution (rotate based on time + user)
+        import time
+        categories = [
+            {
+                "name": "dating",
+                "instruction": f"Generate a DATING recommendation - people the user would match with romantically. IF USER IS FEMALE: show MEN (soft boys, desi boys, finance bros, nerdy boys, ambitious men, etc). IF USER IS MALE: show WOMEN (ambitious girls, creative girls, smart girls, etc). MUST include gender keywords (boys/men/girls/women)."
+            },
+            {
+                "name": "career_success",
+                "instruction": "Generate a CAREER SUCCESS recommendation - high achievers like CEOs, Forbes 30u30 types, founders killing it, people manifesting success. Include diverse races (brown girl ceos, black founders, asian entrepreneurs, etc)."
+            },
+            {
+                "name": "other_careers",
+                "instruction": "Generate an OTHER CAREERS recommendation - specific industries like marketing girlies, IB girlies/bros, consulting people, creative types, dancers, influencers, etc. Be VERY specific to SF culture."
+            },
+            {
+                "name": "ambitious",
+                "instruction": "Generate an AMBITIOUS PEOPLE recommendation - motivated, disciplined people who will inspire the user. Can be women or men depending on user's interests (ambitious women of SF, driven founders, disciplined athletes, etc)."
+            },
+            {
+                "name": "networking",
+                "instruction": "Generate a NETWORKING recommendation - angel investors, VCs, YC partners, mentors, people who can help with startups/career. Focus on people looking to invest or connect."
+            },
+            {
+                "name": "specific_groups",
+                "instruction": "Generate a SPECIFIC NICHE recommendation - YC founders, B2B AI SaaS people, specific tech communities, run clubs, industry-specific groups. Be hyper-specific to SF tech culture."
+            }
+        ]
+
+        # Rotate through categories based on time and user for even distribution
+        # Each user sees different categories, and categories rotate over time
+        rotation_seed = int(time.time() / 3600) + hash(user_id)  # Changes every hour per user
+        selected_category = categories[rotation_seed % len(categories)]
+
+        print(f"🎯 Selected category: {selected_category['name']} for user {user_id[:8]}")
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-        prompt = f"""Generate {count} ICONIC, specific, entertaining group recommendations. Make the user stop scrolling.
+        prompt = f"""Generate {count} ICONIC, specific, entertaining group recommendation. Make the user stop scrolling.
+
+CATEGORY FOCUS: {selected_category['instruction']}
 
 USER PROFILE:
 - City: {user_city}
@@ -110,122 +149,55 @@ USER PROFILE:
 
 CRITICAL RULES:
 
-1. BE HYPER-SPECIFIC & USEFUL
+1. STAY IN YOUR CATEGORY
+   - You MUST generate content for the category specified above
+   - If category is DATING: MUST include gender keywords (boys/men/girls/women) and show DIVERSE races
+   - If category is CAREER SUCCESS: Show CEOs, Forbes 30u30, high achievers of ALL races
+   - If category is OTHER CAREERS: Show specific industries (marketing, IB, consulting, influencers, etc)
+   - If category is AMBITIOUS: Show motivated/disciplined people who inspire
+   - If category is NETWORKING: Show investors, VCs, mentors, connectors
+   - If category is SPECIFIC GROUPS: Show YC founders, B2B SaaS, niche communities
+
+2. BE HYPER-SPECIFIC & USEFUL
    ❌ BAD: "engineers in sf"
    ✅ GOOD: "soft boys who will cook for u while u debug code"
 
-   ❌ BAD: "diverse professionals brunching and networking"
-   ✅ GOOD: "angel investors who will fund ur unhinged startup idea"
-
-2. MAKE IT FUNNY/ENTERTAINING/EYE-OPENING
-   - Add specific details that make it relatable
-   - Use humor, not corporate speak
-   - Make it scroll-stopping
-
-   Examples:
-   - "brown girl ceos in sf absolutely killing it...future forbes 30u30"
-   - "the next taylor swift in ur era wow...the rising stars"
-   - "stanford dropout kids who became billionaires before u graduated"
-   - "soft engineer boys who'll explain distributed systems while making u pasta"
-   - "emotionally available men who text back and plan actual dates"
-   - "girls who'll send u voice memos analyzing ur situationship"
-   - "boys who think ur career ambitions are attractive not intimidating"
-
-3. RELATE IT TO THE USER'S LIFE
-   - Dating: SPECIFIC types they'd want (soft boys, ambitious girls, respectful founders)
-   - Career: People who can ACTUALLY help (investors, mentors in their field, successful people in their city)
-   - Friends: Shared struggles/interests that are SPECIFIC
-   - Cultural: Not generic diversity - specific cultural vibes
-
-4. CITY-SPECIFIC CONTENT - SHOW THE CULTURE (hyper-specific to their city):
-
-   SF (be VERY specific - this is the culture):
+3. SF-SPECIFIC CULTURE:
    - Tech: yc founders, nvidia interns, meta escapees, stripe engineers, openai researchers
-   - Influencers: SF tech influencers, Instagram influencers documenting SF life
-   - Community: nob hill run club runners, SF dancers, marina girls, mission creatives
    - Students: berkeley cs kids, stanford dropouts, class of 2025/2026 interns
-   - Career: female VCs who invest in unhinged ideas, brown girl ceos manifesting forbes 30u30
-   - Dating: all races/types of men (soft men, south asian men, ibanking men, white men, Black men, Latino men, nerdy boys, etc)
-   - Random: people who know the best matcha spots, boba addicts, sourdough bread snobs
+   - Community: nob hill run club, marina girls, mission creatives, matcha/boba spots
+   - Finance: IB analysts, VCs, angel investors
+   - All races: brown/desi, black, asian, white, latino - BE DIVERSE
 
-   NYC: finance bros with poetry obsessions, columbia kids at rooftop bars, bagel connoisseurs, fashion week survivors
+4. DATING CATEGORY - ADAPT TO USER GENDER:
+   IF USER IS FEMALE → show MEN:
+   - "soft boys who'll cook for u", "desi boys who understand family pressure"
+   - "finance bros who plan thoughtful dates", "nerdy boys who think ur ambition is hot"
+   - "black men building generational wealth", "latino men who'll dance with u"
 
-   LA: tiktok creators hitting 10M, usc film kids making a24-level stuff, sunset chasers with insane playlists
+   IF USER IS MALE → show WOMEN:
+   - "ambitious girls building empires", "brown girls manifesting forbes 30u30"
+   - "girls who send u voice memos at 3am", "smart girls who'll debate philosophy with u"
 
-5. ETHNICITY-AWARE (make it specific, not generic):
-   - South Asian: "desi girlies balancing shaadi pressure and startup life", "brown kids whose parents finally understand their job"
-   - Black: "black founders getting funded and changing the game", "hbcu kids running circles around ivy leagues"
-   - But ALSO show 50-60% diverse content so everyone sees variety
+5. BANNED PHRASES:
+   - "diverse professionals", "networking and brunching", "match your energy", "hot"
+   - anything corporate/boring/generic
 
-6. OCCUPATION-BASED (make it specific to their struggles/wins):
-   - Engineers: "10x engineers who touch grass", "swe's who escaped faang for startups"
-   - Students: "cs kids surviving on free pizza and ambition", "college kids building the next unicorn from their dorm"
-   - Finance: "ibanking survivors who made it out alive", "consultants making slides at 2am but thriving"
+6. STYLE:
+   - lowercase only
+   - TWO LINES (separated by \\n):
+     * Line 1: Main description (5-10 words)
+     * Line 2: Spicy/unhinged detail (3-8 words) - impressive, not apologetic
 
-7. DATING DIVERSITY - SHOW ALL TYPES (ADAPT TO USER'S GENDER):
-
-   IF USER IS FEMALE (show MEN of ALL races/personalities they'd want to date):
-   - Soft men: "soft boys who'll cook for u and listen to ur rants after standup"
-   - South Asian: "desi boys who understand family pressure and still choose u"
-   - White men: "white boys with emotional intelligence who read books for fun"
-   - Black men: "black men who are ambitious, respectful, and emotionally available"
-   - Latino men: "latino men who'll dance with u and cook family recipes"
-   - Ibanking: "finance bros who'll plan thoughtful dates not just expensive ones"
-   - Nerdy: "nerdy boys who think ur debugging skills are attractive"
-   - YC founders: "yc founders who'll respect ur ambition and actually pay for dinner"
-
-   IF USER IS MALE (show WOMEN of ALL races/personalities they'd want to date):
-   - "girls who'll take u on museum dates and debate philosophy with u"
-   - "brown girls building empires who want someone equally driven"
-   - "black girls who are intimidatingly smart but also really kind"
-   - "white girls with good music taste who send u playlists"
-   - "asian girls who are ambitious and won't settle for less"
-   - "latina girls who'll match ur energy and introduce u to good food"
-   - "girls who send u memes at 3am and understand ur chaos"
-
-   IMPORTANT: Show DIVERSITY in dating - all races, all personality types, all vibes
-
-BANNED PHRASES (never use these):
-- "diverse professionals"
-- "networking and brunching"
-- "exploring opportunities"
-- "building connections"
-- "match your energy" / "match ur energy"
-- "hot" (use: attractive, into, excited about, etc)
-- anything corporate/boring/generic/vague influencer speak
-
-STYLE:
-- lowercase only
-- iconic, funny, specific, scroll-stopping
-- TWO LINES per description (separated by newline \\n):
-  * Line 1: Main description (5-10 words)
-  * Line 2: Funny/wholesome/ironic detail (3-8 words) - NOT mean, NOT judgmental
-
-VIBE CHECK FOR LINE 2 - BE UNHINGED, SPICY, DIVERSE, HYPER-LOCAL:
-✅ GOOD (impressive + unhinged + roast-but-hot + shows culture):
-- "respectful kings who actually plan dates\\ngreen flags only we don't play"
+EXAMPLES:
 - "brown girl ceos in sf absolutely killing it\\nfuture forbes 30u30 and they know it"
 - "soft boys who'll listen to ur rants\\nemotionally intelligent men are the new flex"
-- "stanford kids building the next unicorn\\nbootstrapped from their dorm not their trust fund"
-- "engineers who left meta to build cool shit\\nand they're actually shipping code not sitting in meetings"
-- "finance bros with taste\\nthey'll take u to the natural wine bar not fidi steakhouse"
-- "nob hill run club runners\\nthey're faster than u and hotter too"
-- "nvidia interns making 200k\\nand still eating free office snacks for dinner"
-- "SF tech influencers with 50k followers\\ndocumenting every matcha spot in the mission"
-- "class of 2025 interns grinding\\nalready have return offers and side projects"
-- "female VCs who will invest in ur unhinged idea\\nif ur pitch deck slaps"
-- "desi boys who understand family pressure\\nand still choose u over arranged marriage"
-- "black men building generational wealth\\nand looking for a partner not a placeholder"
+- "angel investors looking for the next unicorn\\nif ur pitch deck slaps they'll write the check"
+- "marketing girlies of sf who matcha and pilates\\nand still close deals by 3pm"
+- "yc founders building b2b ai saas\\nthey've seen the cap table trauma and survived"
 
-❌ BAD (apologetic, making excuses, not impressive, contradicts first line):
-- "men who will cook for u\\nactually they js order doordash but its the thought" ← making excuses!
-- "building unicorns\\nfunded by their parents credit card but we support" ← NOT impressive!
-- anything that undercuts the first line or makes it less cool
-
-TONE: unhinged, spicy, roast-but-in-a-hot-way, chaotic, diverse, scroll-stopping
-
-Return ONLY JSON array of {count} strings (each string has \\n for line break):
-["line1\\nline2", "line1\\nline2", ...]"""
+Return ONLY JSON array of {count} string (each string has \\n for line break):
+["line1\\nline2"]"""
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",

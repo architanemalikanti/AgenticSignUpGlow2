@@ -128,9 +128,9 @@ def generate_ai_groups(user_id: str, count: int = 5) -> list:
             }
         ]
 
-        # Rotate through categories based on time and user for even distribution
-        # Each user sees different categories, and categories rotate over time
-        rotation_seed = int(time.time() / 3600) + hash(user_id)  # Changes every hour per user
+        # Rotate through categories with randomness for true even distribution
+        # Use time in minutes to rotate faster + add randomness
+        rotation_seed = int(time.time() / 300) + hash(user_id) + random.randint(0, 1000)  # Changes every 5 min
         selected_category = categories[rotation_seed % len(categories)]
 
         print(f"🎯 Selected category: {selected_category['name']} for user {user_id[:8]}")
@@ -147,37 +147,44 @@ USER PROFILE:
 - Gender: {user_gender}
 - Ethnicity: {user_ethnicity}
 
+🚨 CRITICAL: DO NOT over-index on user's ethnicity! Show DIVERSE races across ALL categories. If user is desi, DON'T only show desi people - show ALL races equally (white, black, latino, asian, etc).
+
 CRITICAL RULES:
 
 1. STAY IN YOUR CATEGORY
    - You MUST generate content for the category specified above
-   - If category is DATING: MUST include gender keywords (boys/men/girls/women) and show DIVERSE races
+   - If category is DATING: MUST include gender keywords AND show ALL races (not just user's ethnicity)
    - If category is CAREER SUCCESS: Show CEOs, Forbes 30u30, high achievers of ALL races
    - If category is OTHER CAREERS: Show specific industries (marketing, IB, consulting, influencers, etc)
    - If category is AMBITIOUS: Show motivated/disciplined people who inspire
    - If category is NETWORKING: Show investors, VCs, mentors, connectors
    - If category is SPECIFIC GROUPS: Show YC founders, B2B SaaS, niche communities
 
-2. BE HYPER-SPECIFIC & USEFUL
+2. DIVERSITY IS MANDATORY
+   - DO NOT match user's ethnicity - show DIFFERENT races
+   - If user is desi → show white/black/latino/asian/mixed people
+   - If user is white → show desi/black/latino/asian people
+   - Rotate through ALL demographics, not just similar to user
+
+3. BE HYPER-SPECIFIC & USEFUL
    ❌ BAD: "engineers in sf"
    ✅ GOOD: "soft boys who will cook for u while u debug code"
 
-3. SF-SPECIFIC CULTURE:
+4. SF-SPECIFIC CULTURE:
    - Tech: yc founders, nvidia interns, meta escapees, stripe engineers, openai researchers
    - Students: berkeley cs kids, stanford dropouts, class of 2025/2026 interns
    - Community: nob hill run club, marina girls, mission creatives, matcha/boba spots
    - Finance: IB analysts, VCs, angel investors
-   - All races: brown/desi, black, asian, white, latino - BE DIVERSE
 
-4. DATING CATEGORY - ADAPT TO USER GENDER:
-   IF USER IS FEMALE → show MEN:
-   - "soft boys who'll cook for u", "desi boys who understand family pressure"
-   - "finance bros who plan thoughtful dates", "nerdy boys who think ur ambition is hot"
-   - "black men building generational wealth", "latino men who'll dance with u"
+5. DATING CATEGORY - SHOW VARIETY (don't match user's ethnicity):
+   IF USER IS FEMALE → show MEN of DIFFERENT races:
+   - "soft boys who'll cook for u", "finance bros who plan thoughtful dates"
+   - "nerdy boys who think ur ambition is hot", "latino men who'll dance with u"
+   - "black men building generational wealth", "white boys with emotional intelligence"
 
-   IF USER IS MALE → show WOMEN:
-   - "ambitious girls building empires", "brown girls manifesting forbes 30u30"
-   - "girls who send u voice memos at 3am", "smart girls who'll debate philosophy with u"
+   IF USER IS MALE → show WOMEN of DIFFERENT races:
+   - "ambitious girls building empires", "girls who send u voice memos at 3am"
+   - "smart girls who'll debate philosophy with u", "asian girls manifesting forbes 30u30"
 
 5. BANNED PHRASES:
    - "diverse professionals", "networking and brunching", "match your energy", "hot"

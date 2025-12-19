@@ -189,3 +189,17 @@ class Report(Base):
     # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class Block(Base):
+    __tablename__ = 'blocks'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign keys
+    blocker_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who is blocking
+    blocked_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User being blocked
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+

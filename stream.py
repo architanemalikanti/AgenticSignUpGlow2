@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report
+from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block
 from agent import Agent
 from prompt_manager import set_prompt
 from redis_client import r
@@ -759,11 +759,19 @@ async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
         reported_user_ids = db.query(Report.reported_user_id).filter(Report.reporter_id == user_id).distinct().all()
         reported_user_ids = [r[0] for r in reported_user_ids]
 
-        # Get posts from followed users + own posts, excluding posts from reported users
+        # Get blocked users (users you blocked + users who blocked you)
+        blocked_by_me = db.query(Block.blocked_id).filter(Block.blocker_id == user_id).all()
+        blocked_me = db.query(Block.blocker_id).filter(Block.blocked_id == user_id).all()
+        blocked_user_ids = [b[0] for b in blocked_by_me] + [b[0] for b in blocked_me]
+
+        # Combine reported and blocked users
+        excluded_user_ids = list(set(reported_user_ids + blocked_user_ids))
+
+        # Get posts from followed users + own posts, excluding reported and blocked users
         # Use eager loading to fetch user and media in ONE query (not 11 queries!)
         query = db.query(Post).filter(Post.user_id.in_(following_ids))
-        if reported_user_ids:
-            query = query.filter(~Post.user_id.in_(reported_user_ids))
+        if excluded_user_ids:
+            query = query.filter(~Post.user_id.in_(excluded_user_ids))
 
         posts = query.options(
             joinedload(Post.user),
@@ -857,10 +865,18 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
         reported_user_ids = db.query(Report.reported_user_id).filter(Report.reporter_id == user_id).distinct().all()
         reported_user_ids = [r[0] for r in reported_user_ids]
 
-        # Build query to exclude posts from reported users
+        # Get blocked users (users you blocked + users who blocked you)
+        blocked_by_me = db.query(Block.blocked_id).filter(Block.blocker_id == user_id).all()
+        blocked_me = db.query(Block.blocker_id).filter(Block.blocked_id == user_id).all()
+        blocked_user_ids = [b[0] for b in blocked_by_me] + [b[0] for b in blocked_me]
+
+        # Combine reported and blocked users
+        excluded_user_ids = list(set(reported_user_ids + blocked_user_ids))
+
+        # Build query to exclude posts from reported and blocked users
         query = db.query(Post).filter(Post.user_id.in_(following_ids))
-        if reported_user_ids:
-            query = query.filter(~Post.user_id.in_(reported_user_ids))
+        if excluded_user_ids:
+            query = query.filter(~Post.user_id.in_(excluded_user_ids))
 
         friend_posts = query.options(
             joinedload(Post.user),
@@ -903,9 +919,9 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
         if ai_descriptions and len(ai_descriptions) > 0:
             matched_users = find_users_from_ai_description(ai_descriptions[0], top_k=5)
 
-            # Filter out reported users from AI recommendations
-            if reported_user_ids:
-                matched_users = [user for user in matched_users if user['user_id'] not in reported_user_ids]
+            # Filter out reported and blocked users from AI recommendations
+            if excluded_user_ids:
+                matched_users = [user for user in matched_users if user['user_id'] not in excluded_user_ids]
 
             # Only add the group if there are users to show
             if matched_users:
@@ -3921,6 +3937,100 @@ async def report_post(report_data: ReportRequest):
 
     except Exception as e:
         logger.error(f"❌ Error reporting post: {e}")
+        db.rollback()
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+class BlockRequest(BaseModel):
+    blocker_id: str
+    blocked_id: str
+
+@app.post("/block/user")
+async def block_user(block_data: BlockRequest):
+    """
+    Block a user. This will:
+    - Prevent blocker from seeing blocked user's content
+    - Prevent blocked user from seeing blocker's content (mutual hiding)
+    - Remove any existing follow relationships
+    - Remove any pending follow requests
+    - Prevent future follow requests
+
+    Request body:
+    {
+        "blocker_id": "user_id_doing_the_blocking",
+        "blocked_id": "user_id_being_blocked"
+    }
+
+    Returns:
+        Success/error status
+    """
+    db = SessionLocal()
+    try:
+        # Validate both users exist
+        blocker = db.query(User).filter(User.id == block_data.blocker_id).first()
+        blocked = db.query(User).filter(User.id == block_data.blocked_id).first()
+
+        if not blocker or not blocked:
+            return {
+                "status": "error",
+                "message": "One or both users not found"
+            }
+
+        # Can't block yourself
+        if block_data.blocker_id == block_data.blocked_id:
+            return {
+                "status": "error",
+                "message": "Cannot block yourself"
+            }
+
+        # Check if already blocked
+        existing_block = db.query(Block).filter(
+            Block.blocker_id == block_data.blocker_id,
+            Block.blocked_id == block_data.blocked_id
+        ).first()
+
+        if existing_block:
+            return {
+                "status": "error",
+                "message": "User already blocked"
+            }
+
+        # 1. Create block
+        new_block = Block(
+            blocker_id=block_data.blocker_id,
+            blocked_id=block_data.blocked_id
+        )
+        db.add(new_block)
+
+        # 2. Remove follow relationships (both directions)
+        db.query(Follow).filter(
+            ((Follow.follower_id == block_data.blocker_id) & (Follow.following_id == block_data.blocked_id)) |
+            ((Follow.follower_id == block_data.blocked_id) & (Follow.following_id == block_data.blocker_id))
+        ).delete(synchronize_session=False)
+
+        # 3. Remove follow requests (both directions)
+        db.query(FollowRequest).filter(
+            ((FollowRequest.requester_id == block_data.blocker_id) & (FollowRequest.requested_id == block_data.blocked_id)) |
+            ((FollowRequest.requester_id == block_data.blocked_id) & (FollowRequest.requested_id == block_data.blocker_id))
+        ).delete(synchronize_session=False)
+
+        db.commit()
+        db.refresh(new_block)
+
+        logger.info(f"🚫 User {block_data.blocker_id} blocked user {block_data.blocked_id}")
+
+        return {
+            "status": "success",
+            "message": "User blocked successfully",
+            "block_id": new_block.id
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error blocking user: {e}")
         db.rollback()
         return {
             "status": "error",

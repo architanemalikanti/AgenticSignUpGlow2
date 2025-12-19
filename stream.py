@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post
+from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report
 from agent import Agent
 from prompt_manager import set_prompt
 from redis_client import r
@@ -755,11 +755,17 @@ async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
         # Add user's own ID to see their own posts (like Instagram)
         following_ids.append(user_id)
 
-        # Get posts from followed users + own posts
+        # Get posts the user has reported (to exclude from feed)
+        reported_post_ids = db.query(Report.post_id).filter(Report.reporter_id == user_id).all()
+        reported_post_ids = [r[0] for r in reported_post_ids]
+
+        # Get posts from followed users + own posts, excluding reported posts
         # Use eager loading to fetch user and media in ONE query (not 11 queries!)
-        posts = db.query(Post).filter(
-            Post.user_id.in_(following_ids)
-        ).options(
+        query = db.query(Post).filter(Post.user_id.in_(following_ids))
+        if reported_post_ids:
+            query = query.filter(~Post.id.in_(reported_post_ids))
+
+        posts = query.options(
             joinedload(Post.user),
             joinedload(Post.media)
         ).order_by(desc(Post.created_at)).limit(limit).offset(offset).all()
@@ -847,9 +853,16 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
         following_ids = [f[0] for f in following]
         # Don't include your own posts - iOS will handle showing them temporarily after posting
 
-        friend_posts = db.query(Post).filter(
-            Post.user_id.in_(following_ids)
-        ).options(
+        # Get posts the user has reported (to exclude from feed)
+        reported_post_ids = db.query(Report.post_id).filter(Report.reporter_id == user_id).all()
+        reported_post_ids = [r[0] for r in reported_post_ids]
+
+        # Build query to exclude reported posts
+        query = db.query(Post).filter(Post.user_id.in_(following_ids))
+        if reported_post_ids:
+            query = query.filter(~Post.id.in_(reported_post_ids))
+
+        friend_posts = query.options(
             joinedload(Post.user),
             joinedload(Post.media)
         ).order_by(desc(Post.created_at)).limit(limit).offset(offset).all()
@@ -3821,6 +3834,86 @@ async def delete_account(user_id: str):
 
     except Exception as e:
         logger.error(f"❌ Error deleting account for {user_id}: {e}")
+        db.rollback()
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+class ReportRequest(BaseModel):
+    post_id: str
+    reporter_id: str
+    reason: str
+
+@app.post("/report/post")
+async def report_post(report_data: ReportRequest):
+    """
+    Report a post for objectionable content.
+
+    Request body:
+    {
+        "post_id": "post_id",
+        "reporter_id": "user_id_who_is_reporting",
+        "reason": "Why this content is inappropriate"
+    }
+
+    Returns:
+        Success/error status
+    """
+    db = SessionLocal()
+    try:
+        # Check if post exists
+        post = db.query(Post).filter(Post.id == report_data.post_id).first()
+        if not post:
+            return {
+                "status": "error",
+                "message": "Post not found"
+            }
+
+        # Check if reporter exists
+        reporter = db.query(User).filter(User.id == report_data.reporter_id).first()
+        if not reporter:
+            return {
+                "status": "error",
+                "message": "Reporter user not found"
+            }
+
+        # Check if already reported by this user
+        existing_report = db.query(Report).filter(
+            Report.post_id == report_data.post_id,
+            Report.reporter_id == report_data.reporter_id
+        ).first()
+
+        if existing_report:
+            return {
+                "status": "error",
+                "message": "You have already reported this post"
+            }
+
+        # Create report
+        new_report = Report(
+            post_id=report_data.post_id,
+            reported_user_id=post.user_id,  # User who created the post
+            reporter_id=report_data.reporter_id,
+            reason=report_data.reason
+        )
+
+        db.add(new_report)
+        db.commit()
+        db.refresh(new_report)
+
+        logger.info(f"🚨 Post {report_data.post_id} reported by user {report_data.reporter_id}. Reason: {report_data.reason}")
+
+        return {
+            "status": "success",
+            "message": "Report submitted successfully",
+            "report_id": new_report.id
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error reporting post: {e}")
         db.rollback()
         return {
             "status": "error",

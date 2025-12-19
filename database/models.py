@@ -171,3 +171,21 @@ class Like(Base):
     # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class Report(Base):
+    __tablename__ = 'reports'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign keys
+    post_id = Column(String(36), ForeignKey('posts.id'), nullable=False)  # Post being reported
+    reported_user_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who created the post
+    reporter_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who reported
+
+    # Report details
+    reason = Column(String, nullable=False)  # Why the content is inappropriate
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+

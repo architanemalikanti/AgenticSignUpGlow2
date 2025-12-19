@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Notification, Like
+from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post
 from agent import Agent
 from prompt_manager import set_prompt
 from redis_client import r
@@ -3721,6 +3721,107 @@ async def get_follower_count(user_id: str):
 
     except Exception as e:
         logger.error(f"Error fetching counts for {user_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+@app.delete("/user/{user_id}")
+async def delete_account(user_id: str):
+    """
+    Delete a user's account and all associated data.
+
+    This includes:
+    - User profile
+    - All posts and media
+    - Designs
+    - Follow relationships (followers and following)
+    - Follow requests (sent and received)
+    - Notifications (received and triggered)
+    - Likes
+    - Pinecone embeddings
+
+    Args:
+        user_id: The user's ID
+
+    Returns:
+        Success/error status
+    """
+    from profile_embeddings import index as pinecone_index
+
+    db = SessionLocal()
+    try:
+        # Check if user exists
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {
+                "status": "error",
+                "message": "User not found"
+            }
+
+        logger.info(f"🗑️  Starting account deletion for user {user_id} ({user.username})")
+
+        # 1. Delete from Pinecone
+        try:
+            pinecone_index.delete(ids=[user_id])
+            logger.info(f"✅ Deleted Pinecone embedding for user {user_id}")
+        except Exception as e:
+            logger.warning(f"⚠️  Could not delete Pinecone embedding: {e}")
+
+        # 2. Delete likes by this user
+        likes_count = db.query(Like).filter(Like.user_id == user_id).delete()
+        logger.info(f"✅ Deleted {likes_count} likes")
+
+        # 3. Delete notifications (received and triggered)
+        notifs_received = db.query(Notification).filter(Notification.user_id == user_id).delete()
+        notifs_triggered = db.query(Notification).filter(Notification.actor_id == user_id).delete()
+        logger.info(f"✅ Deleted {notifs_received} notifications received, {notifs_triggered} notifications triggered")
+
+        # 4. Delete follow requests (sent and received)
+        requests_sent = db.query(FollowRequest).filter(FollowRequest.requester_id == user_id).delete()
+        requests_received = db.query(FollowRequest).filter(FollowRequest.requested_id == user_id).delete()
+        logger.info(f"✅ Deleted {requests_sent} follow requests sent, {requests_received} follow requests received")
+
+        # 5. Delete follow relationships (as follower and following)
+        follows_as_follower = db.query(Follow).filter(Follow.follower_id == user_id).delete()
+        follows_as_following = db.query(Follow).filter(Follow.following_id == user_id).delete()
+        logger.info(f"✅ Deleted {follows_as_follower} follows (as follower), {follows_as_following} follows (as following)")
+
+        # 6. Delete designs
+        designs_count = db.query(Design).filter(Design.user_id == user_id).delete()
+        logger.info(f"✅ Deleted {designs_count} designs")
+
+        # 7. Delete posts (PostMedia will cascade delete automatically)
+        posts_count = db.query(Post).filter(Post.user_id == user_id).delete()
+        logger.info(f"✅ Deleted {posts_count} posts (and associated media)")
+
+        # 8. Delete user
+        db.delete(user)
+        db.commit()
+
+        logger.info(f"✅ Successfully deleted account for user {user_id} ({user.username})")
+
+        return {
+            "status": "success",
+            "message": "Account deleted successfully",
+            "deleted": {
+                "likes": likes_count,
+                "notifications_received": notifs_received,
+                "notifications_triggered": notifs_triggered,
+                "follow_requests_sent": requests_sent,
+                "follow_requests_received": requests_received,
+                "follows_as_follower": follows_as_follower,
+                "follows_as_following": follows_as_following,
+                "designs": designs_count,
+                "posts": posts_count
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error deleting account for {user_id}: {e}")
+        db.rollback()
         return {
             "status": "error",
             "error": str(e)

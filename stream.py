@@ -755,15 +755,15 @@ async def get_user_feed(user_id: str, limit: int = 5, offset: int = 0):
         # Add user's own ID to see their own posts (like Instagram)
         following_ids.append(user_id)
 
-        # Get posts the user has reported (to exclude from feed)
-        reported_post_ids = db.query(Report.post_id).filter(Report.reporter_id == user_id).all()
-        reported_post_ids = [r[0] for r in reported_post_ids]
+        # Get users that the current user has reported (to exclude ALL their posts)
+        reported_user_ids = db.query(Report.reported_user_id).filter(Report.reporter_id == user_id).distinct().all()
+        reported_user_ids = [r[0] for r in reported_user_ids]
 
-        # Get posts from followed users + own posts, excluding reported posts
+        # Get posts from followed users + own posts, excluding posts from reported users
         # Use eager loading to fetch user and media in ONE query (not 11 queries!)
         query = db.query(Post).filter(Post.user_id.in_(following_ids))
-        if reported_post_ids:
-            query = query.filter(~Post.id.in_(reported_post_ids))
+        if reported_user_ids:
+            query = query.filter(~Post.user_id.in_(reported_user_ids))
 
         posts = query.options(
             joinedload(Post.user),
@@ -853,14 +853,14 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
         following_ids = [f[0] for f in following]
         # Don't include your own posts - iOS will handle showing them temporarily after posting
 
-        # Get posts the user has reported (to exclude from feed)
-        reported_post_ids = db.query(Report.post_id).filter(Report.reporter_id == user_id).all()
-        reported_post_ids = [r[0] for r in reported_post_ids]
+        # Get users that the current user has reported (to exclude ALL their posts)
+        reported_user_ids = db.query(Report.reported_user_id).filter(Report.reporter_id == user_id).distinct().all()
+        reported_user_ids = [r[0] for r in reported_user_ids]
 
-        # Build query to exclude reported posts
+        # Build query to exclude posts from reported users
         query = db.query(Post).filter(Post.user_id.in_(following_ids))
-        if reported_post_ids:
-            query = query.filter(~Post.id.in_(reported_post_ids))
+        if reported_user_ids:
+            query = query.filter(~Post.user_id.in_(reported_user_ids))
 
         friend_posts = query.options(
             joinedload(Post.user),
@@ -902,10 +902,17 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
 
         if ai_descriptions and len(ai_descriptions) > 0:
             matched_users = find_users_from_ai_description(ai_descriptions[0], top_k=5)
-            ai_groups_data.append({
-                "description": ai_descriptions[0],
-                "users": matched_users
-            })
+
+            # Filter out reported users from AI recommendations
+            if reported_user_ids:
+                matched_users = [user for user in matched_users if user['user_id'] not in reported_user_ids]
+
+            # Only add the group if there are users to show
+            if matched_users:
+                ai_groups_data.append({
+                    "description": ai_descriptions[0],
+                    "users": matched_users
+                })
 
         # Step 3: Mix friend posts + AI groups
         mixed_feed = []

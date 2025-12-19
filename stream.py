@@ -2735,13 +2735,14 @@ Generate 2 questions:"""
         db.close()
 
 @app.get("/searchUsers")
-async def search_users(query: str = Query(..., min_length=1)):
+async def search_users(query: str = Query(..., min_length=1), user_id: str = Query(...)):
     """
     Search for users by username or name.
-    Returns top 5 matching results.
+    Returns top 5 matching results, excluding blocked users.
 
     Args:
         query: Search string (username or name)
+        user_id: ID of user performing the search (to filter blocked users)
 
     Returns:
         List of up to 5 matching users with their basic info
@@ -2757,12 +2758,23 @@ async def search_users(query: str = Query(..., min_length=1)):
                 "message": "Search query cannot be empty"
             }
 
-        # Query database for users matching username or name
+        # Get blocked users (users you blocked + users who blocked you) to exclude from search
+        blocked_by_me = db.query(Block.blocked_id).filter(Block.blocker_id == user_id).all()
+        blocked_me = db.query(Block.blocker_id).filter(Block.blocked_id == user_id).all()
+        blocked_user_ids = [b[0] for b in blocked_by_me] + [b[0] for b in blocked_me]
+
+        # Query database for users matching username or name, excluding blocked users
         # Using ilike for case-insensitive partial matching
-        matching_users = db.query(User).filter(
+        query_filter = (
             (User.username.ilike(f"%{search_term}%")) |
             (User.name.ilike(f"%{search_term}%"))
-        ).limit(5).all()
+        )
+
+        # Exclude blocked users
+        if blocked_user_ids:
+            query_filter = query_filter & (~User.id.in_(blocked_user_ids))
+
+        matching_users = db.query(User).filter(query_filter).limit(5).all()
 
         # Format results
         results = []

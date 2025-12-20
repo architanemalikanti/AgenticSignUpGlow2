@@ -203,3 +203,20 @@ class Block(Base):
     # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class Comment(Base):
+    __tablename__ = 'comments'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign keys
+    post_id = Column(String(36), ForeignKey('posts.id'), nullable=False)  # Post being commented on
+    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who made the comment
+
+    # Comment content
+    content = Column(String, nullable=False)  # The comment text
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+

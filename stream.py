@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block
+from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment
 from agent import Agent
 from prompt_manager import set_prompt
 from redis_client import r
@@ -4044,6 +4044,138 @@ async def block_user(block_data: BlockRequest):
     except Exception as e:
         logger.error(f"❌ Error blocking user: {e}")
         db.rollback()
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+class CommentCreate(BaseModel):
+    user_id: str
+    content: str
+
+@app.post("/post/{post_id}/comment")
+async def create_comment(post_id: str, comment_data: CommentCreate):
+    """
+    Add a comment to a post.
+
+    Request body:
+    {
+        "user_id": "user_id_commenting",
+        "content": "This is a comment"
+    }
+
+    Returns:
+        Success/error status with comment details
+    """
+    db = SessionLocal()
+    try:
+        # Check if post exists
+        post = db.query(Post).filter(Post.id == post_id).first()
+        if not post:
+            return {
+                "status": "error",
+                "message": "Post not found"
+            }
+
+        # Check if user exists
+        user = db.query(User).filter(User.id == comment_data.user_id).first()
+        if not user:
+            return {
+                "status": "error",
+                "message": "User not found"
+            }
+
+        # Create comment
+        new_comment = Comment(
+            post_id=post_id,
+            user_id=comment_data.user_id,
+            content=comment_data.content
+        )
+
+        db.add(new_comment)
+        db.commit()
+        db.refresh(new_comment)
+
+        logger.info(f"💬 User {comment_data.user_id} commented on post {post_id}")
+
+        return {
+            "status": "success",
+            "message": "Comment added successfully",
+            "comment": {
+                "comment_id": new_comment.id,
+                "post_id": post_id,
+                "user_id": new_comment.user_id,
+                "username": user.username,
+                "name": user.name,
+                "profile_image": user.profile_image,
+                "content": new_comment.content,
+                "created_at": new_comment.created_at.isoformat()
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error creating comment: {e}")
+        db.rollback()
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+@app.get("/post/{post_id}/comments")
+async def get_comments(post_id: str, limit: int = 50, offset: int = 0):
+    """
+    Get all comments for a post.
+
+    Query params:
+    - post_id: ID of the post
+    - limit: Max comments to return (default 50)
+    - offset: Pagination offset (default 0)
+
+    Returns:
+        List of comments with user info
+    """
+    db = SessionLocal()
+    try:
+        # Check if post exists
+        post = db.query(Post).filter(Post.id == post_id).first()
+        if not post:
+            return {
+                "status": "error",
+                "message": "Post not found"
+            }
+
+        # Get comments ordered by creation time (newest first)
+        comments = db.query(Comment).filter(
+            Comment.post_id == post_id
+        ).order_by(Comment.created_at.desc()).limit(limit).offset(offset).all()
+
+        # Format results with user info
+        results = []
+        for comment in comments:
+            user = db.query(User).filter(User.id == comment.user_id).first()
+            results.append({
+                "comment_id": comment.id,
+                "user_id": comment.user_id,
+                "username": user.username if user else "unknown",
+                "name": user.name if user else "Unknown",
+                "profile_image": user.profile_image if user else None,
+                "content": comment.content,
+                "created_at": comment.created_at.isoformat()
+            })
+
+        return {
+            "status": "success",
+            "post_id": post_id,
+            "count": len(results),
+            "comments": results
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error getting comments: {e}")
         return {
             "status": "error",
             "error": str(e)

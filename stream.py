@@ -605,16 +605,17 @@ Use lowercase, gen-z vibe.
 If images are already uploaded, acknowledge them and focus on the vibe/tone. Don't ask the user to upload images."""
 
         # Parse media_urls and format for Claude vision
-        message_content = []
-
-        # Add user's text
-        message_content.append({
-            "type": "text",
-            "text": q
-        })
-
-        # Add images if present
+        # Only use multimodal format if images are present
         if has_images:
+            message_content = []
+
+            # Add user's text
+            message_content.append({
+                "type": "text",
+                "text": q
+            })
+
+            # Add images
             try:
                 import json
                 parsed_media = json.loads(media_urls)
@@ -650,12 +651,15 @@ If images are already uploaded, acknowledge them and focus on the vibe/tone. Don
                         }
                     })
 
+                messages = [HumanMessage(content=message_content)]
+
             except Exception as e:
                 logger.error(f"❌ Error parsing media_urls for vision: {e}")
                 # Fallback to text only
-                pass
-
-        messages = [HumanMessage(content=message_content)]
+                messages = [HumanMessage(content=q)]
+        else:
+            # No images - use simple text format (backwards compatible)
+            messages = [HumanMessage(content=q)]
         thread = {"configurable": {"thread_id": thread_id}}
 
         post_initiated = False

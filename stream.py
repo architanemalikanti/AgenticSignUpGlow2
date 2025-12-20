@@ -617,7 +617,6 @@ If images are already uploaded, acknowledge them and focus on the vibe/tone. Don
 
             # Add images
             try:
-                import json
                 parsed_media = json.loads(media_urls)
                 logger.info(f"📸 Parsed {len(parsed_media)} images for Claude vision")
 

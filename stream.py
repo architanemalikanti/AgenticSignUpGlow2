@@ -583,11 +583,15 @@ async def post_stream(
         logger.info(f"📸 has_images: {has_images}, images_context: {images_context}")
 
         # Build the system prompt
+        vision_instruction = ""
+        if has_images:
+            vision_instruction = "\n\n🎨 VISION MODE: You can see the images the user uploaded! Reference what you see in the images naturally when discussing the vibe/tone. Don't just say 'nice photo' - be specific about what you see (the setting, mood, colors, vibe)."
+
         post_prompt = f"""You are a friendly assistant helping users create social media posts.
 Normally when you post on Instagram, the user clicks a button to post. But in the case of Glow, the user
 will upload their images and give a short description of what they wanna post.
 
-IMPORTANT: {images_context}
+IMPORTANT: {images_context}{vision_instruction}
 
 Your main goal after they put a message of their images and short description is to get them to confirm they want to post it.
 "are we ready to post now?": keep confirming this after every message until they say yes.
@@ -600,7 +604,58 @@ Use lowercase, gen-z vibe.
 
 If images are already uploaded, acknowledge them and focus on the vibe/tone. Don't ask the user to upload images."""
 
-        messages = [HumanMessage(content=q)]
+        # Parse media_urls and format for Claude vision
+        message_content = []
+
+        # Add user's text
+        message_content.append({
+            "type": "text",
+            "text": q
+        })
+
+        # Add images if present
+        if has_images:
+            try:
+                import json
+                parsed_media = json.loads(media_urls)
+                logger.info(f"📸 Parsed {len(parsed_media)} images for Claude vision")
+
+                for img_url in parsed_media:
+                    # Extract base64 data (remove data:image/jpeg;base64, prefix if present)
+                    if img_url.startswith('data:image'):
+                        # Format: data:image/jpeg;base64,/9j/4AAQSkZJRg...
+                        parts = img_url.split(',', 1)
+                        if len(parts) == 2:
+                            base64_data = parts[1]
+                            # Detect media type from prefix
+                            media_type = "image/jpeg"  # default
+                            if "image/png" in parts[0]:
+                                media_type = "image/png"
+                            elif "image/webp" in parts[0]:
+                                media_type = "image/webp"
+                        else:
+                            base64_data = img_url
+                            media_type = "image/jpeg"
+                    else:
+                        # Already just base64
+                        base64_data = img_url
+                        media_type = "image/jpeg"
+
+                    message_content.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": base64_data
+                        }
+                    })
+
+            except Exception as e:
+                logger.error(f"❌ Error parsing media_urls for vision: {e}")
+                # Fallback to text only
+                pass
+
+        messages = [HumanMessage(content=message_content)]
         thread = {"configurable": {"thread_id": thread_id}}
 
         post_initiated = False

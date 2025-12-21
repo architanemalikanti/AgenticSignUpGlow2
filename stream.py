@@ -631,8 +631,19 @@ If they just upload images without text, analyze the images and suggest title/ca
 
             # Add images
             try:
+                # Debug logging to see what we're receiving
+                logger.info(f"🔍 DEBUG - Raw media_urls received: {repr(media_urls)}")
+                logger.info(f"🔍 DEBUG - media_urls type: {type(media_urls)}")
+                logger.info(f"🔍 DEBUG - media_urls length: {len(media_urls)}")
+
                 parsed_media = json.loads(media_urls)
                 logger.info(f"📸 Parsed {len(parsed_media)} images for Claude vision")
+                logger.info(f"🔍 DEBUG - parsed_media type: {type(parsed_media)}")
+
+                # Log each item in parsed_media
+                for idx, item in enumerate(parsed_media):
+                    item_preview = repr(item[:100]) if isinstance(item, str) and len(item) > 100 else repr(item)
+                    logger.info(f"🔍 DEBUG - Item {idx}: type={type(item).__name__}, len={len(item) if hasattr(item, '__len__') else 'N/A'}, value={item_preview}")
 
                 for img_url in parsed_media:
                     # Check if it's a URL (Firebase Storage, http/https)

@@ -621,8 +621,20 @@ If images are already uploaded, acknowledge them and focus on the vibe/tone. Don
                 logger.info(f"📸 Parsed {len(parsed_media)} images for Claude vision")
 
                 for img_url in parsed_media:
-                    # Extract base64 data (remove data:image/jpeg;base64, prefix if present)
-                    if img_url.startswith('data:image'):
+                    # Check if it's a URL (Firebase Storage, http/https)
+                    if img_url.startswith('http://') or img_url.startswith('https://'):
+                        # Use URL format for Claude vision
+                        message_content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "url",
+                                "url": img_url
+                            }
+                        })
+                        logger.info(f"📸 Added image from URL: {img_url[:100]}...")
+
+                    # Check if it's a data URI (data:image/jpeg;base64,...)
+                    elif img_url.startswith('data:image'):
                         # Format: data:image/jpeg;base64,/9j/4AAQSkZJRg...
                         parts = img_url.split(',', 1)
                         if len(parts) == 2:
@@ -633,22 +645,33 @@ If images are already uploaded, acknowledge them and focus on the vibe/tone. Don
                                 media_type = "image/png"
                             elif "image/webp" in parts[0]:
                                 media_type = "image/webp"
+                            elif "image/gif" in parts[0]:
+                                media_type = "image/gif"
                         else:
                             base64_data = img_url
                             media_type = "image/jpeg"
-                    else:
-                        # Already just base64
-                        base64_data = img_url
-                        media_type = "image/jpeg"
 
-                    message_content.append({
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": base64_data
-                        }
-                    })
+                        message_content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": base64_data
+                            }
+                        })
+                        logger.info(f"📸 Added image from data URI (media_type: {media_type})")
+
+                    else:
+                        # Assume raw base64 data
+                        message_content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": img_url
+                            }
+                        })
+                        logger.info(f"📸 Added image from raw base64 data")
 
                 messages = [HumanMessage(content=message_content)]
 

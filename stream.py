@@ -637,15 +637,18 @@ If they just upload images without text, analyze the images and suggest title/ca
                 for img_url in parsed_media:
                     # Check if it's a URL (Firebase Storage, http/https)
                     if img_url.startswith('http://') or img_url.startswith('https://'):
+                        # Clean up URL - remove explicit port :443 (Claude doesn't like it)
+                        clean_url = img_url.replace(':443/', '/')
+
                         # Use URL format for Claude vision
                         message_content.append({
                             "type": "image",
                             "source": {
                                 "type": "url",
-                                "url": img_url
+                                "url": clean_url
                             }
                         })
-                        logger.info(f"📸 Added image from URL: {img_url[:100]}...")
+                        logger.info(f"📸 Added image from URL: {clean_url[:100]}...")
 
                     # Check if it's a data URI (data:image/jpeg;base64,...)
                     elif img_url.startswith('data:image'):

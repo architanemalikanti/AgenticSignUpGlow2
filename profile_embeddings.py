@@ -147,24 +147,27 @@ USER PROFILE:
 - Gender: {user_gender}
 - Ethnicity: {user_ethnicity}
 
-🚨 CRITICAL: DO NOT over-index on user's ethnicity! Show DIVERSE races across ALL categories. If user is desi, DON'T only show desi people - show ALL races equally (white, black, latino, asian, etc).
+🎯 PERSONALIZATION RULE: Make recommendations RELEVANT to the user's background while showing some diversity.
+- Use their city, occupation, and ethnicity to personalize (e.g., "desi girls in tech", "latino founders in SF", "asian students at berkeley")
+- Reference their specific context (if engineer → show other engineers, if student → show classmates)
+- Include people from their background AND adjacent communities (mix of similar + diverse)
 
 CRITICAL RULES:
 
 1. STAY IN YOUR CATEGORY
    - You MUST generate content for the category specified above
-   - If category is DATING: MUST include gender keywords AND show ALL races (not just user's ethnicity)
-   - If category is CAREER SUCCESS: Show CEOs, Forbes 30u30, high achievers of ALL races
-   - If category is OTHER CAREERS: Show specific industries (marketing, IB, consulting, influencers, etc)
-   - If category is AMBITIOUS: Show motivated/disciplined people who inspire
-   - If category is NETWORKING: Show investors, VCs, mentors, connectors
-   - If category is SPECIFIC GROUPS: Show YC founders, B2B SaaS, niche communities
+   - If category is DATING: MUST include gender keywords AND reference user's background/city
+   - If category is CAREER SUCCESS: Show CEOs, Forbes 30u30 who match user's industry/background
+   - If category is OTHER CAREERS: Show specific industries relevant to user's city/occupation
+   - If category is AMBITIOUS: Show motivated people in user's community
+   - If category is NETWORKING: Show investors, VCs in user's city/industry
+   - If category is SPECIFIC GROUPS: Show communities relevant to user's background
 
-2. DIVERSITY IS MANDATORY
-   - DO NOT match user's ethnicity - show DIFFERENT races
-   - If user is desi → show white/black/latino/asian/mixed people
-   - If user is white → show desi/black/latino/asian people
-   - Rotate through ALL demographics, not just similar to user
+2. PERSONALIZATION + DIVERSITY BALANCE
+   - REFERENCE user's background (ethnicity, city, occupation) to make it relevant
+   - Show a mix: some people like them + some from adjacent/diverse backgrounds
+   - Examples: "desi engineers in SF", "latina founders building in tech", "black women in consulting"
+   - Make them feel seen while still showing variety
 
 3. BE HYPER-SPECIFIC & USEFUL
    ❌ BAD: "engineers in sf"
@@ -176,15 +179,16 @@ CRITICAL RULES:
    - Community: nob hill run club, marina girls, mission creatives, matcha/boba spots
    - Finance: IB analysts, VCs, angel investors
 
-5. DATING CATEGORY - SHOW VARIETY (don't match user's ethnicity):
-   IF USER IS FEMALE → show MEN of DIFFERENT races:
-   - "soft boys who'll cook for u", "finance bros who plan thoughtful dates"
-   - "nerdy boys who think ur ambition is hot", "latino men who'll dance with u"
-   - "black men building generational wealth", "white boys with emotional intelligence"
+5. DATING CATEGORY - PERSONALIZED TO USER:
+   IF USER IS FEMALE → show MEN relevant to her background/city:
+   - If user is desi: "desi boys who'll debate philosophy with u", "south asian men building in tech"
+   - If user is in SF: "sf boys who understand the grind", "men in tech who respect ambition"
+   - Mix with: "soft boys who'll cook for u", "finance bros who plan thoughtful dates"
 
-   IF USER IS MALE → show WOMEN of DIFFERENT races:
-   - "ambitious girls building empires", "girls who send u voice memos at 3am"
-   - "smart girls who'll debate philosophy with u", "asian girls manifesting forbes 30u30"
+   IF USER IS MALE → show WOMEN relevant to his background/city:
+   - If user is in tech: "ambitious girls building empires", "women in tech crushing it"
+   - If user is in SF: "sf girls who send voice memos at 3am", "bay area women manifesting forbes 30u30"
+   - Mix with: "smart girls who'll debate philosophy with u", "creative women who inspire u"
 
 5. BANNED PHRASES:
    - "diverse professionals", "networking and brunching", "match your energy", "hot"
@@ -196,12 +200,12 @@ CRITICAL RULES:
      * Line 1: Main description (5-10 words)
      * Line 2: Spicy/unhinged detail (3-8 words) - impressive, not apologetic
 
-EXAMPLES:
-- "brown girl ceos in sf absolutely killing it\\nfuture forbes 30u30 and they know it"
-- "soft boys who'll listen to ur rants\\nemotionally intelligent men are the new flex"
-- "angel investors looking for the next unicorn\\nif ur pitch deck slaps they'll write the check"
-- "marketing girlies of sf who matcha and pilates\\nand still close deals by 3pm"
-- "yc founders building b2b ai saas\\nthey've seen the cap table trauma and survived"
+EXAMPLES (personalized to user):
+- If user is desi woman in tech: "desi girls in tech absolutely killing it\\nfuture forbes 30u30 and they know it"
+- If user is female looking for dating: "desi boys who'll debate philosophy with u\\nsouth asian men who understand family dynamics"
+- If user is in SF tech: "sf engineers building the next unicorn\\nthey've seen the cap table trauma and survived"
+- If user is female professional: "women in [user's city] who matcha and pilates\\nand still close deals by 3pm"
+- If user is looking for investors: "angel investors in [user's city] writing checks\\nif ur pitch deck slaps they'll fund it"
 
 Return ONLY JSON array of {count} string (each string has \\n for line break):
 ["line1\\nline2"]"""

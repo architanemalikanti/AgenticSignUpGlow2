@@ -677,7 +677,8 @@ If they just upload images without text, analyze the images and suggest title/ca
                             path_parts = parsed.path.split('/o/')
                             if len(path_parts) == 2:
                                 # Encode everything after /o/ (the storage path)
-                                encoded_storage_path = quote(path_parts[1], safe='')
+                                # Use safe='%' to preserve already-encoded characters (avoid double-encoding)
+                                encoded_storage_path = quote(path_parts[1], safe='%')
                                 clean_url = urlunparse((
                                     parsed.scheme,
                                     parsed.netloc,

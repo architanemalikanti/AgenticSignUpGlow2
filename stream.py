@@ -693,7 +693,7 @@ If they just upload images without text, analyze the images and suggest title/ca
 
                         # Use URL format for Claude vision
                         image_block = {
-                            "type": "image",
+                            "type": "input_image",
                             "source": {
                                 "type": "url",
                                 "url": clean_url

@@ -669,6 +669,25 @@ If they just upload images without text, analyze the images and suggest title/ca
                         # Clean up URL - remove explicit port :443 (Claude doesn't like it)
                         clean_url = img_url.replace(':443/', '/')
 
+                        # Fix Firebase Storage URL encoding - the path component needs proper encoding
+                        if 'firebasestorage.googleapis.com' in clean_url:
+                            from urllib.parse import urlparse, quote, urlunparse
+                            parsed = urlparse(clean_url)
+                            # Re-encode the path component (especially /o/posts/file.jpg -> /o/posts%2Ffile.jpg)
+                            path_parts = parsed.path.split('/o/')
+                            if len(path_parts) == 2:
+                                # Encode everything after /o/ (the storage path)
+                                encoded_storage_path = quote(path_parts[1], safe='')
+                                clean_url = urlunparse((
+                                    parsed.scheme,
+                                    parsed.netloc,
+                                    f'/o/{encoded_storage_path}',
+                                    parsed.params,
+                                    parsed.query,
+                                    parsed.fragment
+                                ))
+                                logger.info(f"🔍 Fixed Firebase URL encoding: {clean_url[:150]}")
+
                         # Validate it's a plain string URL (not JSON-encoded)
                         logger.info(f"🔍 DEBUG - clean_url type: {type(clean_url)}, value: {repr(clean_url[:150])}")
 

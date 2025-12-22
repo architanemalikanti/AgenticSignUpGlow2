@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to delete architavn's last 6 posts from the database.
+Script to delete ALL of architavn's posts from the database.
 
 Usage:
     python3 delete_architavn_posts.py
@@ -42,14 +42,13 @@ def delete_posts():
         user_id, username = user
         print(f"✅ Found user: {username} (ID: {user_id})")
 
-        # Get last 6 posts
-        print(f"\n🔍 Finding last 6 posts...")
+        # Get ALL posts
+        print(f"\n🔍 Finding all posts...")
         cur.execute("""
             SELECT id, title, caption, created_at
             FROM posts
             WHERE user_id = %s
             ORDER BY created_at DESC
-            LIMIT 6
         """, (user_id,))
 
         posts = cur.fetchall()
@@ -130,6 +129,6 @@ def delete_posts():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Delete architavn's Last 6 Posts")
+    print("Delete ALL of architavn's Posts")
     print("=" * 60)
     delete_posts()

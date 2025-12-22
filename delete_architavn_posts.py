@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to delete architavn's last 3 posts from the database.
+Script to delete architavn's last 6 posts from the database.
 
 Usage:
     python3 delete_architavn_posts.py
@@ -42,14 +42,14 @@ def delete_posts():
         user_id, username = user
         print(f"✅ Found user: {username} (ID: {user_id})")
 
-        # Get last 3 posts
-        print(f"\n🔍 Finding last 3 posts...")
+        # Get last 6 posts
+        print(f"\n🔍 Finding last 6 posts...")
         cur.execute("""
             SELECT id, title, caption, created_at
             FROM posts
             WHERE user_id = %s
             ORDER BY created_at DESC
-            LIMIT 3
+            LIMIT 6
         """, (user_id,))
 
         posts = cur.fetchall()
@@ -77,16 +77,46 @@ def delete_posts():
             conn.close()
             return
 
-        # Delete posts (post_media will cascade delete automatically)
-        print("\n🗑️  Deleting posts...")
+        # Delete all related data first, then posts
+        print("\n🗑️  Deleting posts and all associated data...")
         for post_id, _, _, _ in posts:
+            print(f"\n  📝 Processing post {post_id}...")
+
+            # Delete post_media
+            cur.execute("SELECT COUNT(*) FROM post_media WHERE post_id = %s", (post_id,))
+            media_count = cur.fetchone()[0]
+            if media_count > 0:
+                cur.execute("DELETE FROM post_media WHERE post_id = %s", (post_id,))
+                print(f"     🖼️  Deleted {media_count} media item(s)")
+
+            # Delete likes
+            cur.execute("SELECT COUNT(*) FROM likes WHERE post_id = %s", (post_id,))
+            like_count = cur.fetchone()[0]
+            if like_count > 0:
+                cur.execute("DELETE FROM likes WHERE post_id = %s", (post_id,))
+                print(f"     ❤️  Deleted {like_count} like(s)")
+
+            # Delete comments
+            cur.execute("SELECT COUNT(*) FROM comments WHERE post_id = %s", (post_id,))
+            comment_count = cur.fetchone()[0]
+            if comment_count > 0:
+                cur.execute("DELETE FROM comments WHERE post_id = %s", (post_id,))
+                print(f"     💬 Deleted {comment_count} comment(s)")
+
+            # Delete reports
+            cur.execute("SELECT COUNT(*) FROM reports WHERE post_id = %s", (post_id,))
+            report_count = cur.fetchone()[0]
+            if report_count > 0:
+                cur.execute("DELETE FROM reports WHERE post_id = %s", (post_id,))
+                print(f"     🚩 Deleted {report_count} report(s)")
+
+            # Finally delete the post
             cur.execute("DELETE FROM posts WHERE id = %s", (post_id,))
-            print(f"  ✅ Deleted post {post_id}")
+            print(f"     ✅ Deleted post {post_id}")
 
         conn.commit()
 
-        print(f"\n✅ Successfully deleted {len(posts)} post(s)")
-        print("✅ Associated media was automatically deleted (cascade)")
+        print(f"\n✅ Successfully deleted {len(posts)} post(s) and all associated data")
 
         cur.close()
         conn.close()
@@ -100,6 +130,6 @@ def delete_posts():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Delete architavn's Last 3 Posts")
+    print("Delete architavn's Last 6 Posts")
     print("=" * 60)
     delete_posts()

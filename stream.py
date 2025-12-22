@@ -636,30 +636,48 @@ If they just upload images without text, analyze the images and suggest title/ca
                 logger.info(f"🔍 DEBUG - media_urls type: {type(media_urls)}")
                 logger.info(f"🔍 DEBUG - media_urls length: {len(media_urls)}")
 
+                # Parse JSON string into list
                 parsed_media = json.loads(media_urls)
                 logger.info(f"📸 Parsed {len(parsed_media)} images for Claude vision")
                 logger.info(f"🔍 DEBUG - parsed_media type: {type(parsed_media)}")
+
+                # Validate that it's a list
+                if not isinstance(parsed_media, list):
+                    raise ValueError(f"Expected list, got {type(parsed_media)}")
 
                 # Log each item in parsed_media
                 for idx, item in enumerate(parsed_media):
                     item_preview = repr(item[:100]) if isinstance(item, str) and len(item) > 100 else repr(item)
                     logger.info(f"🔍 DEBUG - Item {idx}: type={type(item).__name__}, len={len(item) if hasattr(item, '__len__') else 'N/A'}, value={item_preview}")
 
+                    # Validate each item is a string
+                    if not isinstance(item, str):
+                        raise ValueError(f"Expected string URL at index {idx}, got {type(item)}")
+
                 for img_url in parsed_media:
+                    # Ensure img_url is a plain string, not a JSON-encoded string
+                    if not isinstance(img_url, str):
+                        logger.error(f"❌ Skipping non-string URL: {type(img_url)}")
+                        continue
                     # Check if it's a URL (Firebase Storage, http/https)
                     if img_url.startswith('http://') or img_url.startswith('https://'):
                         # Clean up URL - remove explicit port :443 (Claude doesn't like it)
                         clean_url = img_url.replace(':443/', '/')
 
+                        # Validate it's a plain string URL (not JSON-encoded)
+                        logger.info(f"🔍 DEBUG - clean_url type: {type(clean_url)}, value: {repr(clean_url[:150])}")
+
                         # Use URL format for Claude vision
-                        message_content.append({
+                        image_block = {
                             "type": "image",
                             "source": {
                                 "type": "url",
                                 "url": clean_url
                             }
-                        })
+                        }
+                        message_content.append(image_block)
                         logger.info(f"📸 Added image from URL: {clean_url[:100]}...")
+                        logger.info(f"🔍 DEBUG - Image block added to message_content: {image_block}")
 
                     # Check if it's a data URI (data:image/jpeg;base64,...)
                     elif img_url.startswith('data:image'):
@@ -703,10 +721,21 @@ If they just upload images without text, analyze the images and suggest title/ca
 
                 messages = [HumanMessage(content=message_content)]
 
+                # Log final message structure
+                logger.info(f"🔍 DEBUG - Final message_content structure: {len(message_content)} items")
+                for idx, item in enumerate(message_content):
+                    if item.get("type") == "image":
+                        url_preview = item["source"]["url"][:100] if len(item["source"]["url"]) > 100 else item["source"]["url"]
+                        logger.info(f"🔍 DEBUG - Content[{idx}]: type=image, url={repr(url_preview)}")
+                    else:
+                        logger.info(f"🔍 DEBUG - Content[{idx}]: type={item.get('type')}")
+
             except Exception as e:
                 logger.error(f"❌ Error parsing media_urls for vision: {e}")
+                logger.error(f"🔍 DEBUG - Exception details: {type(e).__name__}: {str(e)}")
                 # Fallback to text only
                 messages = [HumanMessage(content=q)]
+                logger.info("📝 Falling back to text-only mode due to error")
         else:
             # No images - use simple text format (backwards compatible)
             messages = [HumanMessage(content=q)]

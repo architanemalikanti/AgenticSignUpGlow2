@@ -679,10 +679,11 @@ If they just upload images without text, analyze the images and suggest title/ca
                                 # Encode everything after /o/ (the storage path)
                                 # Use safe='%' to preserve already-encoded characters (avoid double-encoding)
                                 encoded_storage_path = quote(path_parts[1], safe='%')
+                                # Keep the part before /o/ (e.g., /v0/b/bucket-name.firebasestorage.app)
                                 clean_url = urlunparse((
                                     parsed.scheme,
                                     parsed.netloc,
-                                    f'/o/{encoded_storage_path}',
+                                    f'{path_parts[0]}/o/{encoded_storage_path}',
                                     parsed.params,
                                     parsed.query,
                                     parsed.fragment

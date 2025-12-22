@@ -20,6 +20,11 @@ from aioapns import APNs, NotificationRequest
 # Load .env from the same directory as this script
 load_dotenv(Path(__file__).parent / ".env")
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s:     %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # Get absolute path to conversations database

@@ -2084,6 +2084,99 @@ async def get_user_posts(user_id: str, limit: int = 2, offset: int = 0):
         }
 
 
+@app.get("/post/{post_id}")
+async def get_post_by_id(post_id: str, user_id: Optional[str] = None):
+    """
+    Get detailed information for a specific post by post_id.
+
+    Path params:
+    - post_id: ID of the post to retrieve
+
+    Query params:
+    - user_id (optional): If provided, returns whether this user has liked the post
+
+    Returns:
+    - Complete post information including user details, media, engagement stats
+    """
+    from database.models import Post, PostMedia, Like, Comment
+    from sqlalchemy.orm import joinedload
+
+    try:
+        db = SessionLocal()
+
+        # Get post with eager loading for user and media
+        post = db.query(Post).filter(
+            Post.id == post_id
+        ).options(
+            joinedload(Post.user),
+            joinedload(Post.media)
+        ).first()
+
+        if not post:
+            db.close()
+            return {
+                "status": "error",
+                "error": "Post not found"
+            }
+
+        # Get user info
+        user = post.user
+
+        # Get media URLs
+        media_urls = [m.media_url for m in post.media]
+
+        # Get engagement stats
+        like_count = db.query(Like).filter(Like.post_id == post_id).count()
+        comment_count = db.query(Comment).filter(Comment.post_id == post_id).count()
+
+        # Check if user has liked this post (if user_id provided)
+        liked_by_user = False
+        if user_id:
+            liked = db.query(Like).filter(
+                Like.post_id == post_id,
+                Like.user_id == user_id
+            ).first()
+            liked_by_user = liked is not None
+
+        # Build response
+        post_data = {
+            "status": "success",
+            "post_id": post.id,
+            "user_id": post.user_id,
+            "username": user.username if user else "unknown",
+            "name": user.name if user else "Unknown",
+            "profile_image": user.profile_image if user else None,
+            "title": post.title,
+            "caption": post.caption,
+            "location": post.location,
+            "ai_sentence": post.ai_sentence,
+            "media_urls": media_urls,
+            "created_at": post.created_at.isoformat() if post.created_at else None,
+            # Actor info (same as user for posts)
+            "actor_id": post.user_id,
+            "actor_username": user.username if user else "unknown",
+            "actor_name": user.name if user else "Unknown",
+            "actor_profile_image": user.profile_image if user else None,
+            # Engagement
+            "like_count": like_count,
+            "comment_count": comment_count,
+            "liked_by_user": liked_by_user
+        }
+
+        db.close()
+
+        logger.info(f"✅ Retrieved post {post_id}")
+
+        return post_data
+
+    except Exception as e:
+        logger.error(f"❌ Error getting post {post_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @app.get("/images/batch")
 async def get_images_batch(offset: int = 0, limit: int = 5):
     """

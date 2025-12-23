@@ -1438,7 +1438,6 @@ Return SHORT bio, lowercase."""
 Context:
 - User: {request.name}
 - Gender: {request.gender}
-- Bio: {generated_bio}
 
 RULES:
 - lowercase
@@ -1448,11 +1447,11 @@ RULES:
 - acknowledge they're brand new (0 followers, 0 following). express as numbers "0" instead of string "zero".
 
 Examples:
-"0 followers. 0 following. please clap!!"
-"0 followers. 0 following. she just got here hehe"
-"0 followers. 0 following. this feels illegal with no followers"
+"0 followers and 0 following. please clap!!"
+"0 followers + 0 following. she just got here hehe"
+"0 followers, 0 following. this feels illegal with no followers"
 "0 followers. 0 following. pls imagine a crowd here"
-"0 followers. 0 following. brb she's gonna become famous just u wait"
+"0 followers & 0 following. brb she's gonna become famous just u wait"
 
 
 Return ONE sentence, lowercase."""

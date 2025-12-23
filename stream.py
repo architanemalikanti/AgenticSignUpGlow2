@@ -1390,28 +1390,24 @@ async def simple_signup(request: SimpleSignupRequest):
                     from anthropic import Anthropic
                     client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-                    prompt = f"""Make this bio SHORT AF with personality: "{request.instagram_bio}"
+                    prompt = f"""Make this bio SHORT AF with sassy personality: "{request.instagram_bio}"
 
 RULES:
 - SUPER SHORT (3-5 words max)
 - all lowercase
 - include city/school if mentioned
 - fragments not full sentences (use | to separate)
-- gen z slang + personality
+- gen z slang + sassy ersonality
 - NO emojis
 
+
 Examples:
-"cs @ berkeley | building cool stuff"
-→ "berkeley cs | lowkey goated"
-
-"founder | yc s23 | sf"
-→ "sf | yc founder"
-
-"marketing @ startup | pilates"
-→ "marketing girly | pilates addict"
-
-"stanford student | loves coding"
-→ "stanford | codes 4 fun"
+berkeley cs | she’s built different
+📍 sf — she’s an east coast girly from cornell
+ma | she’s at harvard class of 2026 and busy
+boston born, ucla educated, and currently in his sf era.
+he goes to cornell law. what, like it's hard?
+she’s at an ivy. it explains the confidence.
 
 Return SHORT bio, lowercase."""
 

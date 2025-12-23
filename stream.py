@@ -1444,14 +1444,16 @@ RULES:
 - lowercase
 - gen z humor
 - self-aware/sassy
-- one sentence max
-- acknowledge they're brand new (0 followers, 0 following)
+- one sentence max and SHORT. 
+- acknowledge they're brand new (0 followers, 0 following). express as numbers "0" instead of string "zero".
 
 Examples:
-"starting from zero but the vibe is immaculate"
-"no followers yet but main character energy is already here"
-"0 followers 0 following but watch this space"
-"just joined and already the most interesting person here probably"
+"0 followers. 0 following. please clap!!"
+"0 followers. 0 following. she just got here hehe"
+"0 followers. 0 following. this feels illegal with no followers"
+"0 followers. 0 following. pls imagine a crowd here"
+"0 followers. 0 following. brb she's gonna become famous just u wait"
+
 
 Return ONE sentence, lowercase."""
 

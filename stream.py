@@ -1397,7 +1397,7 @@ RULES:
 - all lowercase
 - include city/school if mentioned
 - fragments not full sentences (use | to separate)
-- gen z slang + sassy ersonality
+- gen z slang + sassy personality
 - NO emojis
 
 
@@ -1408,6 +1408,11 @@ ma | she’s at harvard class of 2026 and busy
 boston born, ucla educated, and currently in his sf era.
 he goes to cornell law. what, like it's hard?
 she’s at an ivy. it explains the confidence.
+
+- If the user’s background is generic, or only mentions high school, 
+ignore it and generate a confident, third-person hype line instead.-
+"she's a baddie and she knows she's a ten"
+be confident, slightly sassy, and human in all the bio generations. 
 
 Return SHORT bio, lowercase."""
 

@@ -1396,16 +1396,13 @@ RULES:
 - SUPER SHORT (3-5 words max)
 - all lowercase
 - include city/school if mentioned
-- fragments not full sentences (use | to separate)
-- gen z slang + sassy personality
-- NO emojis
-
+- gen z slang + sassy personalitys
 
 Examples:
-her location is sf but she’s an east coast girly from cornell
-boston born, ucla educated, and currently in his sf era.
-he goes to cornell law. what, like it's hard?
-"she's a baddie and she knows she's a ten. harvard class of 26 💅"
+- her location is sf but she’s an east coast girly from cornell
+- he goes to cornell law. what, like it's hard?
+- she's a baddie and she knows she's a ten. harvard class of 26 💅
+
 be confident, slightly sassy, and human in all the bio generations. 
 
 Return SHORT bio, lowercase, and EMPHASIS ON SPECIFICITY related to the user."""

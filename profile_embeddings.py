@@ -25,8 +25,7 @@ def create_user_profile_embedding(user):
     """
     try:
         profile_text = f"""
-        City: {user.city}
-        Occupation: {user.occupation}
+        Bio: {user.bio if user.bio else "No bio provided"}
         Gender: {user.gender}
         Ethnicity: {user.ethnicity}
         """
@@ -48,8 +47,7 @@ def create_user_profile_embedding(user):
                     "user_id": user.id,
                     "name": user.name,
                     "username": user.username,
-                    "city": user.city,
-                    "occupation": user.occupation,
+                    "bio": user.bio if user.bio else "",
                     "gender": user.gender,
                     "ethnicity": user.ethnicity,
                     "profile_image": user.profile_image if user.profile_image else ""
@@ -89,13 +87,11 @@ def generate_ai_groups(user_id: str, count: int = 5) -> list:
 
         if not user:
             # Fallback if user not found
-            user_city = "sf"
-            user_occupation = "students"
+            user_bio = "student interested in tech and meeting people"
             user_gender = "female"
             user_ethnicity = ""
         else:
-            user_city = user.city or "sf"
-            user_occupation = user.occupation or "students"
+            user_bio = user.bio if user.bio else "exploring interests and meeting new people"
             user_gender = user.gender or "female"
             user_ethnicity = user.ethnicity or ""
 
@@ -142,29 +138,28 @@ def generate_ai_groups(user_id: str, count: int = 5) -> list:
 CATEGORY FOCUS: {selected_category['instruction']}
 
 USER PROFILE:
-- City: {user_city}
-- Occupation: {user_occupation}
+- Bio: {user_bio}
 - Gender: {user_gender}
 - Ethnicity: {user_ethnicity}
 
 🎯 PERSONALIZATION RULE: Make recommendations RELEVANT to the user's background while showing some diversity.
-- Use their city, occupation, and ethnicity to personalize (e.g., "desi girls in tech", "latino founders in SF", "asian students at berkeley")
-- Reference their specific context (if engineer → show other engineers, if student → show classmates)
+- Use their bio info (interests, occupation, location, vibe) and ethnicity to personalize (e.g., "desi girls in tech", "latino founders in SF", "asian students at berkeley")
+- Reference their specific context from their bio (if mentions tech → show tech people, if mentions school → show students)
 - Include people from their background AND adjacent communities (mix of similar + diverse)
 
 CRITICAL RULES:
 
 1. STAY IN YOUR CATEGORY
    - You MUST generate content for the category specified above
-   - If category is DATING: MUST include gender keywords AND reference user's background/city
-   - If category is CAREER SUCCESS: Show CEOs, Forbes 30u30 who match user's industry/background
-   - If category is OTHER CAREERS: Show specific industries relevant to user's city/occupation
+   - If category is DATING: MUST include gender keywords AND reference user's background from bio
+   - If category is CAREER SUCCESS: Show CEOs, Forbes 30u30 who match interests/industry from bio
+   - If category is OTHER CAREERS: Show specific industries relevant to user's interests in bio
    - If category is AMBITIOUS: Show motivated people in user's community
-   - If category is NETWORKING: Show investors, VCs in user's city/industry
-   - If category is SPECIFIC GROUPS: Show communities relevant to user's background
+   - If category is NETWORKING: Show investors, VCs relevant to user's interests
+   - If category is SPECIFIC GROUPS: Show communities relevant to user's background from bio
 
 2. PERSONALIZATION + DIVERSITY BALANCE
-   - REFERENCE user's background (ethnicity, city, occupation) to make it relevant
+   - REFERENCE user's background (ethnicity, interests from bio) to make it relevant
    - Show a mix: some people like them + some from adjacent/diverse backgrounds
    - Examples: "desi engineers in SF", "latina founders building in tech", "black women in consulting"
    - Make them feel seen while still showing variety
@@ -180,14 +175,14 @@ CRITICAL RULES:
    - Finance: IB analysts, VCs, angel investors
 
 5. DATING CATEGORY - PERSONALIZED TO USER:
-   IF USER IS FEMALE → show MEN relevant to her background/city:
+   IF USER IS FEMALE → show MEN relevant to her background/bio:
    - If user is desi: "desi boys who'll debate philosophy with u", "south asian men building in tech"
-   - If user is in SF: "sf boys who understand the grind", "men in tech who respect ambition"
+   - If bio mentions location: reference that location (e.g., "sf boys who understand the grind")
    - Mix with: "soft boys who'll cook for u", "finance bros who plan thoughtful dates"
 
-   IF USER IS MALE → show WOMEN relevant to his background/city:
-   - If user is in tech: "ambitious girls building empires", "women in tech crushing it"
-   - If user is in SF: "sf girls who send voice memos at 3am", "bay area women manifesting forbes 30u30"
+   IF USER IS MALE → show WOMEN relevant to his background/bio:
+   - If bio mentions tech/startup: "ambitious girls building empires", "women in tech crushing it"
+   - If bio mentions location: reference that location (e.g., "sf girls who send voice memos at 3am")
    - Mix with: "smart girls who'll debate philosophy with u", "creative women who inspire u"
 
 5. BANNED PHRASES:
@@ -200,12 +195,12 @@ CRITICAL RULES:
      * Line 1: Main description (5-10 words)
      * Line 2: Spicy/unhinged detail (3-8 words) - impressive, not apologetic
 
-EXAMPLES (personalized to user):
-- If user is desi woman in tech: "desi girls in tech absolutely killing it\\nfuture forbes 30u30 and they know it"
-- If user is female looking for dating: "desi boys who'll debate philosophy with u\\nsouth asian men who understand family dynamics"
-- If user is in SF tech: "sf engineers building the next unicorn\\nthey've seen the cap table trauma and survived"
-- If user is female professional: "women in [user's city] who matcha and pilates\\nand still close deals by 3pm"
-- If user is looking for investors: "angel investors in [user's city] writing checks\\nif ur pitch deck slaps they'll fund it"
+EXAMPLES (personalized to user bio):
+- If user bio mentions desi + tech: "desi girls in tech absolutely killing it\\nfuture forbes 30u30 and they know it"
+- If user is female + bio mentions interests: "desi boys who'll debate philosophy with u\\nsouth asian men who understand family dynamics"
+- If bio mentions SF + tech: "sf engineers building the next unicorn\\nthey've seen the cap table trauma and survived"
+- If bio mentions fitness/professional: "women who matcha and pilates\\nand still close deals by 3pm"
+- If bio mentions startup/founding: "angel investors writing checks\\nif ur pitch deck slaps they'll fund it"
 
 Return ONLY JSON array of {count} string (each string has \\n for line break):
 ["line1\\nline2"]"""

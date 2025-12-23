@@ -1311,8 +1311,7 @@ class SimpleSignupRequest(BaseModel):
     email: str
     password: str
     name: str
-    city: str
-    occupation: str
+    instagram_bio: str  # User's original Instagram bio
     gender: str
     ethnicity: str
 
@@ -1321,6 +1320,7 @@ class SimpleSignupRequest(BaseModel):
 async def simple_signup(request: SimpleSignupRequest):
     """
     Simple signup endpoint - returns redis_id immediately, creates user in background.
+    Generates an AI bio based on user's Instagram bio input.
 
     Request body:
     {
@@ -1328,8 +1328,7 @@ async def simple_signup(request: SimpleSignupRequest):
         "email": "archita@example.com",
         "password": "password123",
         "name": "Archita",
-        "city": "San Francisco",
-        "occupation": "software engineer",
+        "instagram_bio": "cs @ berkeley | building cool stuff | coffee enthusiast",
         "gender": "female",
         "ethnicity": "south asian"
     }
@@ -1384,6 +1383,47 @@ async def simple_signup(request: SimpleSignupRequest):
                     bcrypt.gensalt()
                 ).decode('utf-8')
 
+                # Generate AI bio from Instagram bio
+                logger.info(f"🤖 Generating AI bio from: {request.instagram_bio[:50]}...")
+                generated_bio = None
+                try:
+                    from anthropic import Anthropic
+                    client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+                    prompt = f"""Generate a short, Instagram-style bio written in third person based on this user's bio:
+
+"{request.instagram_bio}"
+
+RULES:
+- Write in third person (use "she/her" for female, "he/him" for male, "they/them" otherwise)
+- Keep it 2-3 sentences max
+- Capture their vibe, interests, and personality
+- Make it engaging and authentic
+- No emojis unless the original had them
+- Lowercase style is fine if it matches their vibe
+
+Examples:
+Input: "cs @ berkeley | building cool stuff | coffee enthusiast"
+Output: "she's studying cs at berkeley and building things that don't break (usually). spends most of her time debugging code and searching for the perfect espresso."
+
+Input: "founder | yc s23 | making ai less boring"
+Output: "he's a founder in yc s23 trying to make ai actually interesting. believes the best ideas come from the worst coffee."
+
+Return ONLY the bio, no quotes, no explanation."""
+
+                    response = client.messages.create(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=150,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+
+                    generated_bio = response.content[0].text.strip()
+                    logger.info(f"✨ Generated bio: {generated_bio}")
+
+                except Exception as bio_error:
+                    logger.error(f"❌ Error generating bio: {bio_error}")
+                    generated_bio = request.instagram_bio  # Fallback to original
+
                 # Get cartoon avatar for females
                 profile_image_url = None
                 if request.gender.lower() == 'female':
@@ -1399,10 +1439,9 @@ async def simple_signup(request: SimpleSignupRequest):
                     email=request.email,
                     name=request.name,
                     password=hashed_password,
-                    occupation=request.occupation,
                     gender=request.gender,
                     ethnicity=request.ethnicity,
-                    city=request.city,
+                    bio=generated_bio,  # Store AI-generated bio
                     profile_image=profile_image_url,
                     created_at=datetime.utcnow()
                 )

@@ -1429,6 +1429,45 @@ Return SHORT bio, lowercase."""
                     logger.error(f"❌ Error generating bio: {bio_error}")
                     generated_bio = request.instagram_bio  # Fallback to original
 
+                # Generate zero followers sentence for UI
+                logger.info(f"🤖 Generating zero followers sentence...")
+                followers_sentence = None
+                try:
+                    followers_prompt = f"""Generate a SHORT, funny, self-aware sentence about having 0 followers and following 0 people.
+
+Context:
+- User: {request.name}
+- Gender: {request.gender}
+- Bio: {generated_bio}
+
+RULES:
+- lowercase
+- gen z humor
+- self-aware/sassy
+- one sentence max
+- acknowledge they're brand new (0 followers, 0 following)
+
+Examples:
+"starting from zero but the vibe is immaculate"
+"no followers yet but main character energy is already here"
+"0 followers 0 following but watch this space"
+"just joined and already the most interesting person here probably"
+
+Return ONE sentence, lowercase."""
+
+                    followers_response = client.messages.create(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=50,
+                        messages=[{"role": "user", "content": followers_prompt}]
+                    )
+
+                    followers_sentence = followers_response.content[0].text.strip()
+                    logger.info(f"✨ Generated followers sentence: {followers_sentence}")
+
+                except Exception as followers_error:
+                    logger.error(f"❌ Error generating followers sentence: {followers_error}")
+                    followers_sentence = "starting from zero but the vibe is immaculate"  # Fallback
+
                 # Get cartoon avatar for females
                 profile_image_url = None
                 if request.gender.lower() == 'female':
@@ -1498,6 +1537,7 @@ Return SHORT bio, lowercase."""
                     "name": new_user.name,
                     "username": new_user.username,
                     "bio": generated_bio,  # AI-generated bio
+                    "followers_sentence": followers_sentence,  # Zero followers UI sentence (not in DB)
                     "access_token": access_token,
                     "refresh_token": refresh_token,
                     "profile_image": profile_image_url,

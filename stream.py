@@ -1402,16 +1402,10 @@ RULES:
 
 
 Examples:
-berkeley cs | she’s built different
-📍 sf — she’s an east coast girly from cornell
-ma | she’s at harvard class of 2026 and busy
+her location is sf but she’s an east coast girly from cornell
 boston born, ucla educated, and currently in his sf era.
 he goes to cornell law. what, like it's hard?
-she’s at an ivy. it explains the confidence.
-
-- If the user’s background is generic, or only mentions high school, 
-ignore it and generate a confident, third-person hype line instead.-
-"she's a baddie and she knows she's a ten"
+"she's a baddie and she knows she's a ten. harvard class of 26 💅"
 be confident, slightly sassy, and human in all the bio generations. 
 
 Return SHORT bio, lowercase."""
@@ -1436,7 +1430,6 @@ Return SHORT bio, lowercase."""
                     followers_prompt = f"""Generate a SHORT, funny, self-aware sentence about having 0 followers and following 0 people.
 
 Context:
-- User: {request.name}
 - Gender: {request.gender}
 
 RULES:
@@ -1451,7 +1444,6 @@ Examples:
 "0 followers + 0 following. she just got here hehe"
 "0 followers, 0 following. this feels illegal with no followers"
 "0 followers. 0 following. pls imagine a crowd here"
-"0 followers & 0 following. brb she's gonna become famous just u wait"
 
 
 Return ONE sentence, lowercase."""

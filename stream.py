@@ -1390,26 +1390,24 @@ async def simple_signup(request: SimpleSignupRequest):
                     from anthropic import Anthropic
                     client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-                    prompt = f"""Generate a short, Instagram-style bio written in third person based on this user's bio:
-
-"{request.instagram_bio}"
+                    prompt = f"""Generate a short, sassy bio in third person based on: "{request.instagram_bio}"
 
 RULES:
-- Write in third person (use "she/her" for female, "he/him" for male, "they/them" otherwise)
-- Keep it 2-3 sentences max
-- Capture their vibe, interests, and personality
-- Make it engaging and authentic
-- No emojis unless the original had them
-- Lowercase style is fine if it matches their vibe
+- all lowercase (except acronyms like CS, YC)
+- third person (she/he/they)
+- 1-2 sentences max
+- gen z slang ok (lowkey, fr, ngl)
+- sassy + confident vibe
+- NO emojis
 
 Examples:
-Input: "cs @ berkeley | building cool stuff | coffee enthusiast"
-Output: "she's studying cs at berkeley and building things that don't break (usually). spends most of her time debugging code and searching for the perfect espresso."
+"cs @ berkeley | building cool stuff"
+→ "she's at berkeley studying cs and lowkey thinks her code is better than yours"
 
-Input: "founder | yc s23 | making ai less boring"
-Output: "he's a founder in yc s23 trying to make ai actually interesting. believes the best ideas come from the worst coffee."
+"founder | yc s23"
+→ "he's a yc s23 founder making stuff people actually want. probably."
 
-Return ONLY the bio, no quotes, no explanation."""
+Return ONLY the bio, lowercase, no quotes."""
 
                     response = client.messages.create(
                         model="claude-sonnet-4-20250514",

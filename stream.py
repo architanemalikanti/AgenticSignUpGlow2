@@ -1492,6 +1492,7 @@ Return ONLY the bio, no quotes, no explanation."""
                     "user_id": user_id,
                     "name": new_user.name,
                     "username": new_user.username,
+                    "bio": generated_bio,  # AI-generated bio
                     "access_token": access_token,
                     "refresh_token": refresh_token,
                     "profile_image": profile_image_url,

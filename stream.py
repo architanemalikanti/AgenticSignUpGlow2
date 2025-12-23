@@ -1408,7 +1408,7 @@ he goes to cornell law. what, like it's hard?
 "she's a baddie and she knows she's a ten. harvard class of 26 💅"
 be confident, slightly sassy, and human in all the bio generations. 
 
-Return SHORT bio, lowercase."""
+Return SHORT bio, lowercase, and EMPHASIS ON SPECIFICITY related to the user."""
 
                     response = client.messages.create(
                         model="claude-sonnet-4-20250514",

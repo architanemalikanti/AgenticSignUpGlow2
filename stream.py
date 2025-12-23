@@ -1390,24 +1390,30 @@ async def simple_signup(request: SimpleSignupRequest):
                     from anthropic import Anthropic
                     client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-                    prompt = f"""Generate a short, sassy bio in third person based on: "{request.instagram_bio}"
+                    prompt = f"""Make this bio SHORT AF with personality: "{request.instagram_bio}"
 
 RULES:
-- all lowercase (except acronyms like CS, YC)
-- third person (she/he/they)
-- 1-2 sentences max
-- gen z slang ok (lowkey, fr, ngl)
-- sassy + confident vibe
+- SUPER SHORT (3-5 words max)
+- all lowercase
+- include city/school if mentioned
+- fragments not full sentences (use | to separate)
+- gen z slang + personality
 - NO emojis
 
 Examples:
 "cs @ berkeley | building cool stuff"
-→ "she's at berkeley studying cs and lowkey thinks her code is better than yours"
+→ "berkeley cs | lowkey goated"
 
-"founder | yc s23"
-→ "he's a yc s23 founder making stuff people actually want. probably."
+"founder | yc s23 | sf"
+→ "sf | yc founder"
 
-Return ONLY the bio, lowercase, no quotes."""
+"marketing @ startup | pilates"
+→ "marketing girly | pilates addict"
+
+"stanford student | loves coding"
+→ "stanford | codes 4 fun"
+
+Return SHORT bio, lowercase."""
 
                     response = client.messages.create(
                         model="claude-sonnet-4-20250514",

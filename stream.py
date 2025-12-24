@@ -3647,6 +3647,29 @@ async def send_follow_request(request_data: FollowRequestCreate):
 
             logger.info(f"✅ User {request_data.requester_id} now follows {request_data.requested_id} (public profile)")
 
+            # Regenerate follower sentences for BOTH users and save to database
+            # User A (requester) - their following count increased
+            requester_follower_count = db.query(Follow).filter(Follow.following_id == request_data.requester_id).count()
+            requester_following_count = db.query(Follow).filter(Follow.follower_id == request_data.requester_id).count()
+            requester.follower_sentence = generate_follower_sentence(
+                gender=requester.gender,
+                follower_count=requester_follower_count,
+                following_count=requester_following_count
+            )
+
+            # User B (requested) - their follower count increased
+            requested_follower_count = db.query(Follow).filter(Follow.following_id == request_data.requested_id).count()
+            requested_following_count = db.query(Follow).filter(Follow.follower_id == request_data.requested_id).count()
+            requested.follower_sentence = generate_follower_sentence(
+                gender=requested.gender,
+                follower_count=requested_follower_count,
+                following_count=requested_following_count
+            )
+
+            # Save both sentences to database
+            db.commit()
+            logger.info(f"✨ Updated follower sentences for both users")
+
             # Send in-app notification to the followed user
             requester_name = requester.name if requester.name else requester.username
             era_notification = Notification(
@@ -3856,6 +3879,29 @@ async def accept_follow_request(request_data: FollowActionRequest):
         db.commit()
 
         logger.info(f"✅ User {request_data.requested_id} accepted follow from {request_data.requester_id}")
+
+        # Regenerate follower sentences for BOTH users and save to database
+        # User A (requester) - their following count increased
+        requester_follower_count = db.query(Follow).filter(Follow.following_id == request_data.requester_id).count()
+        requester_following_count = db.query(Follow).filter(Follow.follower_id == request_data.requester_id).count()
+        requester.follower_sentence = generate_follower_sentence(
+            gender=requester.gender,
+            follower_count=requester_follower_count,
+            following_count=requester_following_count
+        )
+
+        # User B (accepter) - their follower count increased
+        accepter_follower_count = db.query(Follow).filter(Follow.following_id == request_data.requested_id).count()
+        accepter_following_count = db.query(Follow).filter(Follow.follower_id == request_data.requested_id).count()
+        accepter.follower_sentence = generate_follower_sentence(
+            gender=accepter.gender,
+            follower_count=accepter_follower_count,
+            following_count=accepter_following_count
+        )
+
+        # Save both sentences to database
+        db.commit()
+        logger.info(f"✨ Updated follower sentences for both users")
 
         # Generate AI message for era notification
         accepter_name = accepter.name if accepter.name else accepter.username
@@ -4175,19 +4221,19 @@ async def get_follower_count(user_id: str):
 @app.get("/user/{user_id}/follower-sentence")
 async def get_follower_sentence(user_id: str):
     """
-    Get the AI-generated profile sentence for a user based on their follower/following stats.
-    The AI smartly picks which stat is more interesting to highlight.
+    Get the cached follower sentence for a user from the database.
+    This sentence is automatically updated when:
+    - User follows someone (public profile)
+    - User's follow request is accepted (private profile)
+    - Someone follows this user
 
-    iOS should call this endpoint:
-    - After User A follows someone → call for User A AND User B
-    - When loading a user's profile page
-    - When a follow request is accepted → call for User A AND User B
+    iOS should call this endpoint when loading any user's profile page.
 
     Args:
         user_id: The user's ID
 
     Returns:
-        AI-generated sentence, follower count, and following count
+        Cached follower sentence, follower count, and following count
     """
     db = SessionLocal()
     try:
@@ -4209,12 +4255,18 @@ async def get_follower_sentence(user_id: str):
             Follow.follower_id == user_id
         ).count()
 
-        # Generate smart profile sentence
-        follower_sentence = generate_follower_sentence(
-            gender=user.gender,
-            follower_count=follower_count,
-            following_count=following_count
-        )
+        # Get cached sentence from database
+        # If no sentence exists yet, generate one
+        follower_sentence = user.follower_sentence
+        if not follower_sentence:
+            follower_sentence = generate_follower_sentence(
+                gender=user.gender,
+                follower_count=follower_count,
+                following_count=following_count
+            )
+            user.follower_sentence = follower_sentence
+            db.commit()
+            logger.info(f"✨ Generated initial follower sentence for user {user_id}")
 
         return {
             "status": "success",

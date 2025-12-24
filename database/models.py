@@ -28,6 +28,7 @@ class User(Base):
     occupation = Column(String(200), nullable=True)
     city = Column(String(200), nullable=True)  # City they live in
     bio = Column(String(500), nullable=True)  # AI-generated Instagram-style bio
+    follower_sentence = Column(String(500), nullable=True)  # AI-generated sentence about follower/following stats
     conversations = Column(JSONB, default=list)  # Array of conversation dicts
     prompt = Column(String, nullable=True)  # Store the dynamic prompt state for user
     device_token = Column(String(255), nullable=True)  # APNs device token for push notifications

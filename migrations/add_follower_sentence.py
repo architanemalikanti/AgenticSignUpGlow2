@@ -7,6 +7,15 @@ Usage:
     python migrations/add_follower_sentence.py
 """
 
+import sys
+import os
+from pathlib import Path
+
+# Add parent directory to path so we can import database module
+script_dir = Path(__file__).parent
+parent_dir = script_dir.parent
+sys.path.insert(0, str(parent_dir))
+
 from sqlalchemy import text
 from database.db import SessionLocal, engine
 import logging

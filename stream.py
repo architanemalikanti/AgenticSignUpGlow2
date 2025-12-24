@@ -3532,6 +3532,73 @@ class FollowActionRequest(BaseModel):
     requester_id: str
     requested_id: str
 
+def generate_follower_sentence(gender: str, following_count: int) -> str:
+    """
+    Generate an AI sentence about following someone new.
+    References the user's current following count.
+
+    Args:
+        gender: User's gender for context
+        following_count: Number of people the user is now following
+
+    Returns:
+        Generated sentence string, or fallback if AI generation fails
+    """
+    from anthropic import Anthropic
+
+    logger.info(f"🤖 Generating follower sentence for following count: {following_count}...")
+
+    try:
+        prompt = f"""Generate a SHORT, funny, self-aware sentence about following someone new on social media.
+
+Context:
+- Gender: {gender}
+- User now follows {following_count} {"person" if following_count == 1 else "people"}
+
+RULES:
+- lowercase
+- gen z humor
+- self-aware/sassy
+- one sentence max and SHORT
+- reference the following count as a number ({following_count})
+- celebrate the milestone in a deadpan/ironic way
+
+Examples (if following_count is 1):
+"following 1 person. we're basically besties now"
+"1 following. this is the start of something iconic"
+"following 1 person. main character energy unlocked"
+
+Examples (if following_count is 3):
+"3 people followed. that's basically a friend group"
+"following 3 people. the vibes are immaculate"
+"3 following. we're building an empire here"
+
+Examples (if following_count is 10):
+"10 people followed. influencer arc begins"
+"following 10 people. double digits!! we made it"
+"10 following. this feed is gonna be unhinged"
+
+Return ONE sentence, lowercase, that fits the vibe."""
+
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=50,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        sentence = response.content[0].text.strip()
+        logger.info(f"✨ Generated follower sentence: {sentence}")
+        return sentence
+
+    except Exception as e:
+        logger.error(f"❌ Error generating follower sentence: {e}")
+        # Fallback sentence
+        if following_count == 1:
+            return "following 1 person. iconic start"
+        else:
+            return f"following {following_count} people. the vibes are immaculate"
+
 @app.post("/follow/request")
 async def send_follow_request(request_data: FollowRequestCreate):
     """
@@ -4101,6 +4168,55 @@ async def get_follower_count(user_id: str):
 
     except Exception as e:
         logger.error(f"Error fetching counts for {user_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+@app.get("/user/{user_id}/follower-sentence")
+async def get_follower_sentence(user_id: str):
+    """
+    Get the AI-generated follower sentence for a user based on their current following count.
+    iOS should call this endpoint after the user follows someone (public or private profile).
+
+    Args:
+        user_id: The user's ID
+
+    Returns:
+        AI-generated follower sentence and following count
+    """
+    db = SessionLocal()
+    try:
+        # Get user
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {
+                "status": "error",
+                "message": "User not found"
+            }
+
+        # Get following count
+        following_count = db.query(Follow).filter(
+            Follow.follower_id == user_id
+        ).count()
+
+        # Generate follower sentence
+        follower_sentence = generate_follower_sentence(
+            gender=user.gender,
+            following_count=following_count
+        )
+
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "follower_sentence": follower_sentence,
+            "following_count": following_count
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching follower sentence for {user_id}: {e}")
         return {
             "status": "error",
             "error": str(e)

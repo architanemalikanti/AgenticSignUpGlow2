@@ -3532,6 +3532,67 @@ class FollowActionRequest(BaseModel):
     requester_id: str
     requested_id: str
 
+def generate_relationship_sentence(user_a_name: str, user_a_bio: str, user_b_name: str, user_b_bio: str) -> str:
+    """
+    Generate an AI sentence explaining how two users might know each other.
+    Based on their bios, infer the connection.
+
+    Args:
+        user_a_name: Name of the first user (person in the followers/following list)
+        user_a_bio: Bio of the first user
+        user_b_name: Name of the second user (owner of the list)
+        user_b_bio: Bio of the second user
+
+    Returns:
+        Short sentence explaining the relationship
+    """
+    from anthropic import Anthropic
+
+    logger.info(f"🤖 Generating relationship sentence between {user_a_name} and {user_b_name}...")
+
+    try:
+        prompt = f"""Generate a SHORT sentence explaining how these two people might know each other based on their bios.
+
+{user_a_name}'s bio: {user_a_bio if user_a_bio else "No bio"}
+{user_b_name}'s bio: {user_b_bio if user_b_bio else "No bio"}
+
+RULES:
+- lowercase only
+- SHORT (3-8 words max)
+- casual, gen-z tone
+- infer connection from: school, work, hobbies, location, interests
+- be creative but believable
+- can use hashtags if relevant
+- if they share a school, mention it (e.g., "both at cornell", "met thru stanford")
+- if one mentions the other or similar interests, reference it
+- if no clear connection, be vague but fun (e.g., "kindred spirits", "good vibes only")
+
+Examples:
+"knows josh thru cornell"
+"also another cornellian #gobigred"
+"her brother lmao"
+"met through design twitter"
+"both coffee addicts apparently"
+"stanford cs majors unite"
+"nyc creative scene energy"
+
+Return ONE short sentence, lowercase, no quotes."""
+
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=30,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        sentence = response.content[0].text.strip().strip('"\'')
+        logger.info(f"✨ Generated relationship: {sentence}")
+        return sentence
+
+    except Exception as e:
+        logger.error(f"❌ Error generating relationship sentence: {e}")
+        return "connected somehow"  # Fallback
+
 def generate_follower_sentence(gender: str, follower_count: int, following_count: int) -> str:
     """
     Generate a smart, dynamic AI sentence about a user's social stats.
@@ -4087,32 +4148,50 @@ async def cancel_follow_request(request_data: FollowActionRequest):
 async def get_followers(user_id: str):
     """
     Get all users who follow this user (User B's followers).
+    Includes AI-generated relationship sentence for each follower.
 
     Args:
         user_id: The user's ID
 
     Returns:
-        List of followers with their info
+        List of followers with their info and relationship sentences
     """
     db = SessionLocal()
     try:
+        # Get the profile owner (User B)
+        profile_owner = db.query(User).filter(User.id == user_id).first()
+        if not profile_owner:
+            return {
+                "status": "error",
+                "message": "User not found"
+            }
+
         # Get all follows where this user is being followed
         follows = db.query(Follow).filter(
             Follow.following_id == user_id
         ).all()
 
-        # Get follower info
+        # Get follower info with relationship sentences
         results = []
         for follow in follows:
             follower = db.query(User).filter(User.id == follow.follower_id).first()
             if follower:
+                # Generate relationship sentence
+                relationship_sentence = generate_relationship_sentence(
+                    user_a_name=follower.name,
+                    user_a_bio=follower.bio if follower.bio else "",
+                    user_b_name=profile_owner.name,
+                    user_b_bio=profile_owner.bio if profile_owner.bio else ""
+                )
+
                 results.append({
                     "user_id": follower.id,
                     "username": follower.username,
                     "name": follower.name,
                     "university": follower.university,
                     "occupation": follower.occupation,
-                    "followed_at": follow.created_at.isoformat()
+                    "followed_at": follow.created_at.isoformat(),
+                    "relationship_sentence": relationship_sentence
                 })
 
         return {
@@ -4135,32 +4214,50 @@ async def get_followers(user_id: str):
 async def get_following(user_id: str):
     """
     Get all users that this user follows (who User B is following).
+    Includes AI-generated relationship sentence for each person they follow.
 
     Args:
         user_id: The user's ID
 
     Returns:
-        List of users they're following with their info
+        List of users they're following with their info and relationship sentences
     """
     db = SessionLocal()
     try:
+        # Get the profile owner (User B)
+        profile_owner = db.query(User).filter(User.id == user_id).first()
+        if not profile_owner:
+            return {
+                "status": "error",
+                "message": "User not found"
+            }
+
         # Get all follows where this user is the follower
         follows = db.query(Follow).filter(
             Follow.follower_id == user_id
         ).all()
 
-        # Get following info
+        # Get following info with relationship sentences
         results = []
         for follow in follows:
             following = db.query(User).filter(User.id == follow.following_id).first()
             if following:
+                # Generate relationship sentence
+                relationship_sentence = generate_relationship_sentence(
+                    user_a_name=following.name,
+                    user_a_bio=following.bio if following.bio else "",
+                    user_b_name=profile_owner.name,
+                    user_b_bio=profile_owner.bio if profile_owner.bio else ""
+                )
+
                 results.append({
                     "user_id": following.id,
                     "username": following.username,
                     "name": following.name,
                     "university": following.university,
                     "occupation": following.occupation,
-                    "followed_at": follow.created_at.isoformat()
+                    "followed_at": follow.created_at.isoformat(),
+                    "relationship_sentence": relationship_sentence
                 })
 
         return {

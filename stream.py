@@ -2614,6 +2614,46 @@ async def get_user_profile_image(user_id: str):
     finally:
         db.close()
 
+@app.get("/user/{user_id}/bio")
+async def get_user_bio(user_id: str):
+    """
+    Get a user's bio from the database.
+
+    Args:
+        user_id: The user's ID in the database
+
+    Returns:
+        User's bio (AI-generated Instagram-style bio)
+    """
+    from database.db import SessionLocal
+    from database.models import User
+
+    db = SessionLocal()
+    try:
+        # Query user by ID
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            return {
+                "status": "error",
+                "message": "User not found"
+            }
+
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "bio": user.bio if user.bio else None
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching bio for {user_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
 @app.get("/user/{user_id}/introduction")
 async def generate_user_introduction(user_id: str):
     """

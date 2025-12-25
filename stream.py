@@ -3574,7 +3574,7 @@ class FollowActionRequest(BaseModel):
 
 def generate_relationship_sentence(user_a_name: str, user_a_bio: str, user_b_name: str, user_b_bio: str) -> str:
     """
-    Generate an AI sentence explaining how two users might know each other.
+    Generate an sentence explaining how two users might know each other.
     Based on their bios, infer the connection.
 
     Args:
@@ -3600,21 +3600,18 @@ RULES:
 - lowercase only
 - SHORT (3-8 words max)
 - casual, gen-z tone
-- infer connection from: school, work, hobbies, location, interests
-- be creative but believable
-- can use hashtags if relevant
+- infer connection by saying "probably", "might" through: school, work, hobbies, location, interests.
 - if they share a school, mention it (e.g., "both at cornell", "met thru stanford")
-- if one mentions the other or similar interests, reference it
-- if no clear connection, be vague but fun (e.g., "kindred spirits", "good vibes only")
+- if no clear connection, 
+ 
 
 Examples:
-"knows josh thru cornell"
+"knows {user_a_name} thru cornell"
 "also another cornellian #gobigred"
 "her brother lmao"
-"met through design twitter"
-"both coffee addicts apparently"
-"stanford cs majors unite"
-"nyc creative scene energy"
+"met {user_a_name} through design twitter"
+"knows {user_a_name} because of stanford cs majors unite"
+"knows {user_a_name} thru the nyc creative scene"
 
 Return ONE short sentence, lowercase, no quotes."""
 

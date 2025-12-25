@@ -4183,19 +4183,25 @@ async def cancel_follow_request(request_data: FollowActionRequest):
         db.close()
 
 @app.get("/user/{user_id}/followers")
-async def get_followers(user_id: str):
+async def get_followers(user_id: str, limit: int = 5, offset: int = 0):
     """
-    Get all users who follow this user (User B's followers).
+    Get users who follow this user (User B's followers) with pagination.
     Includes AI-generated relationship sentence for each follower.
 
     Args:
         user_id: The user's ID
+        limit: Number of followers to return (default 5, max 100)
+        offset: Number of followers to skip (default 0)
 
     Returns:
-        List of followers with their info and relationship sentences
+        Paginated list of followers with their info and relationship sentences
     """
     db = SessionLocal()
     try:
+        # Validate pagination params
+        limit = min(limit, 100)  # Max 100 per page
+        offset = max(offset, 0)  # No negative offsets
+
         # Get the profile owner (User B)
         profile_owner = db.query(User).filter(User.id == user_id).first()
         if not profile_owner:
@@ -4204,10 +4210,15 @@ async def get_followers(user_id: str):
                 "message": "User not found"
             }
 
-        # Get all follows where this user is being followed
+        # Get total count of followers
+        total_count = db.query(Follow).filter(
+            Follow.following_id == user_id
+        ).count()
+
+        # Get paginated follows where this user is being followed
         follows = db.query(Follow).filter(
             Follow.following_id == user_id
-        ).all()
+        ).order_by(Follow.created_at.desc()).limit(limit).offset(offset).all()
 
         # Get follower info with relationship sentences
         results = []
@@ -4235,7 +4246,11 @@ async def get_followers(user_id: str):
         return {
             "status": "success",
             "user_id": user_id,
+            "total_count": total_count,
             "count": len(results),
+            "limit": limit,
+            "offset": offset,
+            "has_more": (offset + len(results)) < total_count,
             "followers": results
         }
 
@@ -4249,19 +4264,25 @@ async def get_followers(user_id: str):
         db.close()
 
 @app.get("/user/{user_id}/following")
-async def get_following(user_id: str):
+async def get_following(user_id: str, limit: int = 5, offset: int = 0):
     """
-    Get all users that this user follows (who User B is following).
+    Get users that this user follows (who User B is following) with pagination.
     Includes AI-generated relationship sentence for each person they follow.
 
     Args:
         user_id: The user's ID
+        limit: Number of following to return (default 5, max 100)
+        offset: Number of following to skip (default 0)
 
     Returns:
-        List of users they're following with their info and relationship sentences
+        Paginated list of users they're following with their info and relationship sentences
     """
     db = SessionLocal()
     try:
+        # Validate pagination params
+        limit = min(limit, 100)  # Max 100 per page
+        offset = max(offset, 0)  # No negative offsets
+
         # Get the profile owner (User B)
         profile_owner = db.query(User).filter(User.id == user_id).first()
         if not profile_owner:
@@ -4270,10 +4291,15 @@ async def get_following(user_id: str):
                 "message": "User not found"
             }
 
-        # Get all follows where this user is the follower
+        # Get total count of following
+        total_count = db.query(Follow).filter(
+            Follow.follower_id == user_id
+        ).count()
+
+        # Get paginated follows where this user is the follower
         follows = db.query(Follow).filter(
             Follow.follower_id == user_id
-        ).all()
+        ).order_by(Follow.created_at.desc()).limit(limit).offset(offset).all()
 
         # Get following info with relationship sentences
         results = []
@@ -4301,7 +4327,11 @@ async def get_following(user_id: str):
         return {
             "status": "success",
             "user_id": user_id,
+            "total_count": total_count,
             "count": len(results),
+            "limit": limit,
+            "offset": offset,
+            "has_more": (offset + len(results)) < total_count,
             "following": results
         }
 

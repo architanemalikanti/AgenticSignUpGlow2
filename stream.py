@@ -3663,6 +3663,7 @@ RULES:
 - gen z humor
 - self-aware/sassy/deadpan
 - MAX 7 WORDS. 
+- third person.
 - reference the numbers directly
 - BE SMART: pick which stat is more interesting/funny to highlight:
   * If following > followers: make a joke about following more than your followers
@@ -3671,12 +3672,13 @@ RULES:
   * If following_count just increased: focus on that milestone
   * Pick what makes the funniest/most interesting sentence
 
+Make sure the sentence actually relates to the following / follower count directly and keep it clear. 
 Examples (all 7-10 words):
-"0 followers, 1 following. manifesting a crowd rn"
-"3 followers, 3 following. perfectly balanced energy happening here"
+"0 followers, 1 following. picture a crowd here rn"
+"3 followers, 3 following. equilibrium achieved!"
 "10 followers. double digits!!"
-"1 follower, 8 following. giving main character energy tbh"
-"20 followers, 5 following. they're here for the vibes"
+"1 follower, 8 following. low numbers but she's just early"
+"20 followers, 5 following. she follows who she wants."
 
 Return ONE sentence, lowercase, 7-10 words. Be creative and pick the interesting angle."""
 

@@ -3660,17 +3660,14 @@ Context:
 
 RULES:
 - lowercase
-- gen z humor
 - self-aware/sassy/deadpan
 - MAX 7 WORDS. 
 - third person.
 - reference the numbers directly
 - BE SMART: pick which stat is more interesting/funny to highlight:
-  * If following > followers: make a joke about following more than your followers
-  * If follower_count is impressive: celebrate it ironically
-  * If both are low: self-aware humor about starting out
-  * If following_count just increased: focus on that milestone
-  * Pick what makes the funniest/most interesting sentence
+  * If following > followers: make a RESPECTFUL, uplifting joke about following more than your followers
+  * If follower_count is impressive: celebrate it
+  * If both are low: self-aware humor about starting out, respectfully. 
 
 Make sure the sentence actually relates to the following / follower count directly and keep it clear. 
 Examples (all 7-10 words):
@@ -3680,7 +3677,7 @@ Examples (all 7-10 words):
 "1 follower, 8 following. low numbers but she's just early"
 "20 followers, 5 following. she follows who she wants."
 
-Return ONE sentence, lowercase, 7-10 words. Be creative and pick the interesting angle."""
+Return ONE sentence, lowercase."""
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         response = client.messages.create(

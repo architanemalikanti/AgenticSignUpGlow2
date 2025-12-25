@@ -3633,6 +3633,116 @@ Return ONE short sentence, lowercase, no quotes."""
         logger.error(f"❌ Error generating relationship sentence: {e}")
         return "connected somehow"  # Fallback
 
+def generate_followers_page_title(name: str, gender: str, follower_count: int) -> str:
+    """
+    Generate a chill, gen-z page title for someone's followers page.
+
+    Args:
+        name: The profile owner's name
+        gender: Their gender
+        follower_count: How many followers they have
+
+    Returns:
+        Short page title sentence
+    """
+    from anthropic import Anthropic
+
+    logger.info(f"🤖 Generating followers page title for {name} ({follower_count} followers)...")
+
+    try:
+        prompt = f"""Generate a super short, chill, gen-z page title describing {name}'s followers.
+
+Context:
+- Name: {name}
+- Gender: {gender}
+- Follower count: {follower_count}
+
+RULES:
+- lowercase only
+- 5-8 words max
+- casual, chill gen-z tone
+- reference the person by name
+- reference the follower count
+- make it feel like a page header/title
+
+Examples:
+"josh has 50 followers. the people are watching"
+"sarah's got 20 followers. building a community"
+"alex has 100 followers. the crowd is real"
+"emma's 5 followers. quality over quantity vibes"
+
+Return ONE sentence, lowercase."""
+
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=40,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        sentence = response.content[0].text.strip().strip('"\'')
+        logger.info(f"✨ Generated followers page title: {sentence}")
+        return sentence
+
+    except Exception as e:
+        logger.error(f"❌ Error generating followers page title: {e}")
+        return f"{name} has {follower_count} followers"  # Fallback
+
+def generate_following_page_title(name: str, gender: str, following_count: int) -> str:
+    """
+    Generate a chill, gen-z page title for someone's following page.
+
+    Args:
+        name: The profile owner's name
+        gender: Their gender
+        following_count: How many people they follow
+
+    Returns:
+        Short page title sentence
+    """
+    from anthropic import Anthropic
+
+    logger.info(f"🤖 Generating following page title for {name} ({following_count} following)...")
+
+    try:
+        prompt = f"""Generate a super short, chill, gen-z page title describing who {name} follows.
+
+Context:
+- Name: {name}
+- Gender: {gender}
+- Following count: {following_count}
+
+RULES:
+- lowercase only
+- 5-8 words max
+- casual, chill gen-z tone
+- reference the person by name
+- reference the following count
+- make it feel like a page header/title
+
+Examples:
+"josh follows 30 people. building the circle"
+"sarah's following 15 people. curating the feed"
+"alex follows 50 people. keeping tabs on everyone"
+"emma follows 5 people. selective energy only"
+
+Return ONE sentence, lowercase."""
+
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=40,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        sentence = response.content[0].text.strip().strip('"\'')
+        logger.info(f"✨ Generated following page title: {sentence}")
+        return sentence
+
+    except Exception as e:
+        logger.error(f"❌ Error generating following page title: {e}")
+        return f"{name} follows {following_count} people"  # Fallback
+
 def generate_follower_sentence(gender: str, follower_count: int, following_count: int) -> str:
     """
     Generate a smart, dynamic AI sentence about a user's social stats.
@@ -4243,9 +4353,17 @@ async def get_followers(user_id: str, limit: int = 5, offset: int = 0):
                     "relationship_sentence": relationship_sentence
                 })
 
+        # Generate page title for followers page
+        page_title = generate_followers_page_title(
+            name=profile_owner.name,
+            gender=profile_owner.gender if profile_owner.gender else "person",
+            follower_count=total_count
+        )
+
         return {
             "status": "success",
             "user_id": user_id,
+            "page_title": page_title,
             "total_count": total_count,
             "count": len(results),
             "limit": limit,
@@ -4324,9 +4442,17 @@ async def get_following(user_id: str, limit: int = 5, offset: int = 0):
                     "relationship_sentence": relationship_sentence
                 })
 
+        # Generate page title for following page
+        page_title = generate_following_page_title(
+            name=profile_owner.name,
+            gender=profile_owner.gender if profile_owner.gender else "person",
+            following_count=total_count
+        )
+
         return {
             "status": "success",
             "user_id": user_id,
+            "page_title": page_title,
             "total_count": total_count,
             "count": len(results),
             "limit": limit,

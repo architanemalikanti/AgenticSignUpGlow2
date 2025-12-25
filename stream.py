@@ -3662,7 +3662,7 @@ RULES:
 - lowercase
 - gen z humor
 - self-aware/sassy/deadpan
-- one sentence max and SHORT
+- MAX 7 WORDS. 
 - reference the numbers directly
 - BE SMART: pick which stat is more interesting/funny to highlight:
   * If following > followers: make a joke about following more than your followers
@@ -3671,15 +3671,14 @@ RULES:
   * If following_count just increased: focus on that milestone
   * Pick what makes the funniest/most interesting sentence
 
-Examples:
-"5 followers, 12 following. we're generous with the love here"
-"0 followers, 1 following. manifesting a crowd"
-"3 followers, 3 following. perfectly balanced energy"
-"10 followers. double digits!! the people are gathering"
-"1 follower, 8 following. giving main character energy"
+Examples (all 7-10 words):
+"0 followers, 1 following. manifesting a crowd rn"
+"3 followers, 3 following. perfectly balanced energy happening here"
+"10 followers. double digits!!"
+"1 follower, 8 following. giving main character energy tbh"
 "20 followers, 5 following. they're here for the vibes"
 
-Return ONE sentence, lowercase. Be creative and pick the interesting angle."""
+Return ONE sentence, lowercase, 7-10 words. Be creative and pick the interesting angle."""
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         response = client.messages.create(

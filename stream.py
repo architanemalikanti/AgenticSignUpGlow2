@@ -3657,19 +3657,20 @@ Context:
 RULES:
 - lowercase only
 - 5-7 words max
-- human gen-z tone, third person. 
+- human gen-z tone, third person. human = casual, slightly imperfect, almost throwaway, conversational.
 - reference the follower count
 
-Examples, notice how this sounds human.:
+Examples, notice how this sounds human:
 "50 is such a deliberate number"
 "i kind of like 1024"
 “hm 1024.”
 “wait 1024 lol.”
 “lowkey like 1024.”
-"1024 followers… i kinda like it.”
+"1024 followers i like it.”
 “hm 1024 followers.”
 “wait why does 1024 followers feel clean.”
 "oh 1024 followers"
+“1024 followers lol”
 
 Return ONE sentence, lowercase."""
 

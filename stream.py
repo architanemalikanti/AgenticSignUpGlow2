@@ -3600,18 +3600,21 @@ RULES:
 - lowercase only
 - SHORT (3-8 words max)
 - casual, gen-z tone
-- infer connection by saying "probably", "might" through: school, work, hobbies, location, interests.
+- infer connection by saying through: school, work, hobbies, location, interests.
 - if they share a school, mention it (e.g., "both at cornell", "met thru stanford")
-- if no clear connection, 
  
 
 Examples:
 "knows {user_a_name} thru cornell"
-"also another cornellian #gobigred"
-"her brother lmao"
-"met {user_a_name} through design twitter"
-"knows {user_a_name} because of stanford cs majors unite"
-"knows {user_a_name} thru the nyc creative scene"
+"followed eachother likely because they're both interested in ___"
+"probably met {user_a_name} through design twitter"
+"knows {user_a_name} because of stanford cs majors"
+"seems to have connected with {user_a_name} thru the nyc creative scene"
+“connected through cornell”
+
+make sure to say a clear relationship + soft level of uncertainty. because we are inferring the connection. 
+also, do not make the sentences sound the same. make the sentences all sound different, with different sound, words, structure. 
+
 
 Return ONE short sentence, lowercase, no quotes."""
 

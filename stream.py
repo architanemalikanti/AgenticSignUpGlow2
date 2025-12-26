@@ -3647,7 +3647,7 @@ def generate_followers_page_title(name: str, gender: str, follower_count: int) -
     logger.info(f"🤖 Generating followers page title for {name} ({follower_count} followers)...")
 
     try:
-        prompt = f"""Generate a super short, chill, gen-z page title describing {name}'s followers.
+        prompt = f"""Generate a title describing {name}'s followers.
 
 Context:
 - Name: {name}
@@ -3656,17 +3656,20 @@ Context:
 
 RULES:
 - lowercase only
-- 5-8 words max
-- casual, chill gen-z tone
-- reference the person by name
+- 5-7 words max
+- human gen-z tone, third person. 
 - reference the follower count
-- make it feel like a page header/title
 
-Examples:
-"josh has 50 followers. the people are watching"
-"sarah's got 20 followers. building a community"
-"alex has 100 followers. the crowd is real"
-"emma's 5 followers. quality over quantity vibes"
+Examples, notice how this sounds human.:
+"50 is such a deliberate number"
+"i kind of like 1024"
+“hm 1024.”
+“wait 1024 lol.”
+“lowkey like 1024.”
+"1024 followers… i kinda like it.”
+“hm 1024 followers.”
+“wait why does 1024 followers feel clean.”
+"oh 1024 followers"
 
 Return ONE sentence, lowercase."""
 
@@ -3782,7 +3785,6 @@ Examples (all 7-10 words):
 "3 followers, 3 following. equilibrium achieved!"
 "10 followers. double digits!!"
 "1 follower, 8 following. low numbers but she's just early"
-"20 followers, 5 following. she follows who she wants."
 
 Return ONE sentence, lowercase."""
 

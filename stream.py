@@ -3591,37 +3591,51 @@ def generate_relationship_sentence(user_a_name: str, user_a_bio: str, user_b_nam
     logger.info(f"🤖 Generating relationship sentence between {user_a_name} and {user_b_name}...")
 
     try:
-        prompt = f"""Generate a SHORT sentence explaining how these two people might know each other based on their bios.
+        prompt = f"""Generate a SHORT, unique sentence explaining how these two people might know each other.
 
 {user_a_name}'s bio: {user_a_bio if user_a_bio else "No bio"}
 {user_b_name}'s bio: {user_b_bio if user_b_bio else "No bio"}
 
+CRITICAL: Each sentence MUST have a DIFFERENT structure. Pick ONE random pattern from below:
+
+PATTERN 1 - direct connection style:
+"knows {user_a_name} bc they went to school tg"
+"went to {user_a_name}'s hs"
+"from {user_a_name}'s hometown in massachusetts"
+
+PATTERN 1 - "Both" style:
+"both in tech apparently"
+"both cornell grads probably"
+"both building in sf"
+
+PATTERN 3 - "Met" style:
+"met thru startup events"
+"met at some conference"
+"met through sf tech scene"
+
+PATTERN 4 - "Knows" style:
+"knows them from twitter"
+"knows them thru work"
+
+PATTERN 6 - Casual inference:
+"they're in similar tech spaces"
+"overlap in the tech scene"
+"running in same crowds"
+
 RULES:
 - lowercase only
-- SHORT (3-8 words max)
-- casual, gen-z tone
-- infer connection by saying through: school, work, hobbies, location, interests.
-- if they share a school, mention it (e.g., "both at cornell", "met thru stanford")
- 
+- 3-6 words MAXIMUM
+- Pick a RANDOM pattern from above
+- Be specific if bios mention school/work/location
+- Soft uncertainty is ok (probably, maybe, seems like)
 
-Examples:
-"knows {user_a_name} thru cornell"
-"followed eachother likely because they're both interested in ___"
-"probably met {user_a_name} through design twitter"
-"knows {user_a_name} because of stanford cs majors"
-"seems to have connected with {user_a_name} thru the nyc creative scene"
-“connected through cornell”
-
-make sure to say a clear relationship + soft level of uncertainty. because we are inferring the connection. 
-also, do not make the sentences sound the same. make the sentences all sound different, with different sound, words, structure. 
-
-
-Return ONE short sentence, lowercase, no quotes."""
+Return ONE sentence, lowercase, no quotes."""
 
         client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=30,
+            temperature=1.0,  # Maximum creativity/randomness
             messages=[{"role": "user", "content": prompt}]
         )
 

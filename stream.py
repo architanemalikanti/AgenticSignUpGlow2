@@ -1395,6 +1395,7 @@ async def simple_signup(request: SimpleSignupRequest):
 RULES:
 - SUPER SHORT (3-5 words max)
 - all lowercase
+- third person
 - include city/school if mentioned
 - gen z slang + sassy personalitys
 

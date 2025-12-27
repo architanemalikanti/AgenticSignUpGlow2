@@ -2692,28 +2692,18 @@ Profile:
 
 RULES:
 - ALL captions in third person (use their name)
-- Gen-z energy, hype vibes
+- Gen-z tone. if the user is male, make captions masculine and super chill. is the user is female, make tone sound girly and feminine.
 - Instagram caption style
 - NO full sentences, fragments ok
 - Short and punchy (3-8 words each)
-- Reference their bio, interests, location, lifestyle
 - Hype them up
 - Each caption should be DIFFERENT (different themes)
 
 THEMES TO EXPLORE:
-- Era/phase of life (e.g., "{request.name} in his san francisco era")
+- Era/phase of life based on location (e.g., "{request.name} in his san francisco era")
 - Style/fashion (e.g., "{request.name} is trying black outfits now")
-- Social life (e.g., "{request.name} with his gang")
-- Work/hustle (e.g., "building something special")
-- Lifestyle moments (e.g., "night out energy")
-- New chapter (e.g., "entering a new era")
-
-EXAMPLES FOR REFERENCE:
-"{request.name} in his san francisco era"
-"{request.name} is trying black outfits now"
-"entering a new era of his life"
-"{request.name} with his gang"
-"night out with his gang"
+- Social life (e.g., "{request.name} with his ganggg he's p popular")
+- Work/hustle/school (e.g., "building something special")
 
 Return 5 captions, one per line, lowercase, no quotes or numbering."""
 

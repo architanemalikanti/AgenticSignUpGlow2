@@ -576,6 +576,22 @@ async def post_stream(
     - media_urls: Optional JSON string of base64 encoded images
     """
 
+    # Fetch user info from database
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            logger.error(f"❌ User {user_id} not found")
+            return {"status": "error", "message": "User not found"}
+
+        user_name = user.name
+        user_gender = user.gender if user.gender else "not specified"
+        user_bio = user.bio if user.bio else ""
+
+        logger.info(f"👤 User info: {user_name} (gender: {user_gender})")
+    finally:
+        db.close()
+
     # Log media_urls received
     logger.info(f"📸 /post/stream received media_urls: {media_urls}")
     logger.info(f"📸 media_urls type: {type(media_urls)}, length: {len(media_urls) if media_urls else 0}")
@@ -592,36 +608,17 @@ async def post_stream(
         if has_images:
             vision_instruction = "\n\n🎨 VISION MODE: You can see the images! Use what you see to suggest creative titles and captions. Reference specific details - the setting, mood, colors, outfits, activities, people, vibe. Be descriptive and fun!"
 
-        post_prompt = f"""You are a creative assistant helping users create social media posts based on their images.
+        post_prompt = f"""
 
 IMPORTANT: {images_context}{vision_instruction}
 
-Your job:
-1. Look at the images they uploaded
-2. Suggest a catchy title and caption ideas based on what you see
-3. Ask about their vibe preference (aesthetic? party mode? cozy era? girlboss energy?)
-4. Refine based on their feedback
-5. Get confirmation to post
+the user will input a string of the vibe or theme they want for their post.
+your job is to respond with max seven words saying smth like:
+"ok {user_name}, give us a pic of u in ur law school era"
+or whatever the user inputed. 
 
-When suggesting captions:
-- Reference what you actually see in the images (location, outfits, activities, mood, colors, setting)
-- Match the vibe they describe (if they say "party girl era", make it fun and energetic)
-- Keep it lowercase, gen-z style
-- KEEP IT SHORT: 3-8 words max
-- Include emojis that match the vibe
-
-Examples of how to suggest:
-- Beach sunset pics → "ooh stunning sunset vibes! title: 'golden hour therapy', caption: 'sunset state of mind ☀️' sound good?"
-- Coffee shop pic → "cozy cafe aesthetic! title: 'main character energy', caption: 'latte in hand ☕️✨' vibe?"
-- Night out pics → "party mode activated! title: 'that kind of night', caption: 'night hits different 💫' ready to post?"
-
-Flow:
-1. First message: Suggest title + caption based on what you see
-2. Ask if they want adjustments or if they're ready
-3. When they confirm (e.g., "yes", "post it", "let's go", "perfect"), respond EXACTLY: "posting now!"
-
-Keep responses short (1-2 sentences), lowercase, friendly gen-z vibes.
-If they just upload images without text, analyze the images and suggest title/caption immediately."""
+the user will then upload an image, and when they do, output sayin smth describing the pic like "damn this is tuff" with the context of the photo. keep it max 7 words. 
+"""
 
         # Parse media_urls and format for Claude vision
         # Only use multimodal format if images are present

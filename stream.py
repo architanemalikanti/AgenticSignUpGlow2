@@ -2692,12 +2692,15 @@ Profile:
 - Ethnicity: {request.ethnicity}
 
 RULES:
+
+RULES:
+- lowercase only
+- 5-7 words max
+- human gen-z tone, third person. human = casual, slightly imperfect, almost throwaway, conversational.
+- reference the follower count
+
 - ALL captions in third person (use their name)
-- Gen-z tone. if the user is male, make captions masculine and super chill. is the user is female, make tone sound girly and feminine.
-- Instagram caption style
 - NO full sentences, fragments ok
-- Short and punchy (3-8 words each)
-- Hype them up
 - Each caption should be DIFFERENT (different themes)
 
 THEMES TO EXPLORE:
@@ -2705,6 +2708,18 @@ THEMES TO EXPLORE:
 - Style/fashion (e.g., "{request.name} is trying black outfits now")
 - Social life (e.g., "{request.name} with his ganggg he's p popular")
 - Work/hustle/school (e.g., "building something special")
+
+
+Examples, notice how this sounds human:
+"wait he’s wearing black outfits now"
+"oh this is a different andres"
+"him and his guys again"
+"this is a popular guy."
+"everyone kinda knows andres"
+"she's in her mid-20s, real intelligent"
+"y'all hate the fact she's new york city's darling"
+"she's all fucked up but she's still in Vogue"
+
 
 Return 5 captions, one per line, lowercase, no quotes or numbering."""
 

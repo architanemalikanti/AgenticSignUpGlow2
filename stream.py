@@ -2654,6 +2654,108 @@ async def get_user_bio(user_id: str):
     finally:
         db.close()
 
+class PostIdeasRequest(BaseModel):
+    name: str
+    bio: str
+    gender: str
+    ethnicity: str
+
+@app.post("/generate-post-ideas")
+async def generate_post_ideas(request: PostIdeasRequest):
+    """
+    Generate 5 third-person post caption ideas based on user's profile.
+    These are gen-z style, hype captions for Instagram posts.
+
+    Request body:
+    {
+        "name": "Andres",
+        "bio": "building vibeco.ai",
+        "gender": "male",
+        "ethnicity": "guatemalan"
+    }
+
+    Returns:
+        5 post caption ideas
+    """
+    from anthropic import Anthropic
+
+    try:
+        logger.info(f"🤖 Generating post ideas for {request.name}...")
+
+        prompt = f"""Generate 5 third-person post caption ideas for Instagram based on this person's profile.
+
+Profile:
+- Name: {request.name}
+- Bio: {request.bio}
+- Gender: {request.gender}
+- Ethnicity: {request.ethnicity}
+
+RULES:
+- ALL captions in third person (use their name)
+- Gen-z energy, hype vibes
+- Instagram caption style
+- NO full sentences, fragments ok
+- Short and punchy (3-8 words each)
+- Reference their bio, interests, location, lifestyle
+- Hype them up
+- Each caption should be DIFFERENT (different themes)
+
+THEMES TO EXPLORE:
+- Era/phase of life (e.g., "{request.name} in his san francisco era")
+- Style/fashion (e.g., "{request.name} is trying black outfits now")
+- Social life (e.g., "{request.name} with his gang")
+- Work/hustle (e.g., "building something special")
+- Lifestyle moments (e.g., "night out energy")
+- New chapter (e.g., "entering a new era")
+
+EXAMPLES FOR REFERENCE:
+"{request.name} in his san francisco era"
+"{request.name} is trying black outfits now"
+"entering a new era of his life"
+"{request.name} with his gang"
+"night out with his gang"
+
+Return 5 captions, one per line, lowercase, no quotes or numbering."""
+
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=150,
+            temperature=1.0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        # Parse the response into individual captions
+        captions_text = response.content[0].text.strip()
+        captions = [line.strip() for line in captions_text.split('\n') if line.strip()]
+
+        # Ensure we have exactly 5 captions
+        if len(captions) < 5:
+            captions.extend([
+                f"{request.name} in his element",
+                f"building the future",
+                f"{request.name} energy",
+                f"new chapter unlocked",
+                f"the vibes are immaculate"
+            ][:5 - len(captions)])
+
+        captions = captions[:5]  # Take only first 5
+
+        logger.info(f"✨ Generated {len(captions)} post ideas")
+
+        return {
+            "status": "success",
+            "name": request.name,
+            "post_ideas": captions
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error generating post ideas: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
 @app.get("/user/{user_id}/introduction")
 async def generate_user_introduction(user_id: str):
     """

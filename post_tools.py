@@ -146,7 +146,7 @@ async def create_post_from_conversation(redis_id: str, user_id: str, thread_id: 
 
         prompt = f"""Based on this conversation about a social media post, generate:
 1. A short title (3-5 words): keep all lowercase letters, genz, third person. remember, the user's name is: {user_name}. make it like an instagram caption. 
-2. A instagram caption (1-2 sentences): keep all lowercase letters, third person, gen-z. 
+2. A instagram caption (5-7 words): keep all lowercase letters, third person, gen-z. 
 3. A location (if mentioned, otherwise null): keep all lowercase letters, and use acronyms if possible (nyc, sf, la, etc). 
 Return ONLY valid JSON with no other text: {{"title": "...", "caption": "...", "location": "..." or null}}"""
 

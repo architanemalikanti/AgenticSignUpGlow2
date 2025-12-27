@@ -802,25 +802,6 @@ the user will then upload an image, and when they do, output sayin smth describi
                                 }
                                 yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
-                            # Check if AI is confirming post
-                            if "posting now" in full_response.lower() and not post_initiated:
-                                post_initiated = True
-                                redis_id = str(uuid.uuid4())
-
-                                # Set initial Redis status
-                                r.set(f"post_status:{redis_id}", json.dumps({
-                                    "status": "processing",
-                                    "message": "starting post creation..."
-                                }), ex=300)
-
-                                logger.info(f"✅ Post confirmation detected! Created redis_id: {redis_id}")
-
-                                # Start background task
-                                from post_tools import create_post_from_conversation
-                                asyncio.create_task(
-                                    create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
-                                )
-
             except Exception as e:
                 error_str = str(e)
                 is_overload = "overloaded_error" in error_str or "Overloaded" in error_str or "529" in error_str
@@ -854,27 +835,27 @@ the user will then upload an image, and when they do, output sayin smth describi
                                         }]
                                     }
                                     yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                                # Check if AI is confirming post
-                                if "posting now" in full_response.lower() and not post_initiated:
-                                    post_initiated = True
-                                    redis_id = str(uuid.uuid4())
-
-                                    # Set initial Redis status
-                                    r.set(f"post_status:{redis_id}", json.dumps({
-                                        "status": "processing",
-                                        "message": "starting post creation..."
-                                    }), ex=300)
-
-                                    logger.info(f"✅ [FALLBACK] Post confirmation detected! Created redis_id: {redis_id}")
-
-                                    # Start background task
-                                    from post_tools import create_post_from_conversation
-                                    asyncio.create_task(
-                                        create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
-                                    )
                 else:
                     raise
+
+        # Auto-trigger post creation if images were uploaded
+        if has_images and not post_initiated:
+            post_initiated = True
+            redis_id = str(uuid.uuid4())
+
+            # Set initial Redis status
+            r.set(f"post_status:{redis_id}", json.dumps({
+                "status": "processing",
+                "message": "starting post creation..."
+            }), ex=300)
+
+            logger.info(f"✅ Auto-triggering post creation (images uploaded). redis_id: {redis_id}")
+
+            # Start background task
+            from post_tools import create_post_from_conversation
+            asyncio.create_task(
+                create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
+            )
 
         yield "event: done\ndata: {}\n\n"
 

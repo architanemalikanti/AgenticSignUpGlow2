@@ -617,7 +617,7 @@ your job is to respond with max seven words saying smth like:
 "ok {user_name}, give us a pic of u in ur law school era"
 or whatever the user inputed. 
 
-the user will then upload an image, and when they do, output sayin smth describing the pic like "damn this is tuff" with the context of the photo. keep it max 7 words. 
+the user will then upload an image, and when they do, output sayin smth describing the pic like "damn this is tuff" with the context of the photo. keep it max 7 words. then in that same response, output a done token. then we're done with the conversation. 
 """
 
         # Parse media_urls and format for Claude vision

@@ -5657,7 +5657,14 @@ async def stylist_chat(
             yield f"event: searching\ndata: {{}}\n\n"
             # Stream the searching message character by character
             for char in "Analyzing your request...":
-                yield f"event: token\ndata: {json.dumps({'text': char})}\n\n"
+                content_block = {
+                    "content": [{
+                        "text": char,
+                        "type": "text",
+                        "index": 0
+                    }]
+                }
+                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
             # Step 1: Use Claude to analyze request and generate search queries
             from anthropic import Anthropic
@@ -5715,7 +5722,14 @@ Return ONLY a JSON array of search queries with category labels:
                     yield f"event: category_header\ndata: {{}}\n\n"
                     # Stream category name character by character
                     for char in category:
-                        yield f"event: token\ndata: {json.dumps({'text': char})}\n\n"
+                        content_block = {
+                            "content": [{
+                                "text": char,
+                                "type": "text",
+                                "index": 0
+                            }]
+                        }
+                        yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                 # Immediately process and stream products from this search
                 for product in products:
@@ -5742,10 +5756,17 @@ Write a short, gen-z friendly explanation of why this item works for their outfi
                     # IMMEDIATELY send events for this product (don't wait for others)
                     # Each field is a divider with empty data, then stream text character-by-character
 
-                    # Helper function to stream text character by character
+                    # Helper function to stream text character by character (Anthropic format)
                     def stream_text(text):
                         for char in text:
-                            yield f"event: token\ndata: {json.dumps({'text': char})}\n\n"
+                            content_block = {
+                                "content": [{
+                                    "text": char,
+                                    "type": "text",
+                                    "index": 0
+                                }]
+                            }
+                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                     # Category
                     yield f"event: category\ndata: {{}}\n\n"

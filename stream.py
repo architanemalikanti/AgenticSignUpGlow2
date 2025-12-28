@@ -5734,52 +5734,76 @@ Return ONLY a JSON array of search queries with category labels:
                     product["category"] = category
                     product_count += 1
 
-                    # Send product fields as single chunks (they come from Shopping API)
-                    # Category
-                    yield f"event: category\ndata: {{}}\n\n"
-                    content_block = {
-                        "content": [{
-                            "text": product['category'],
-                            "type": "text",
-                            "index": 0
-                        }]
-                    }
-                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                    # Have Claude generate better product presentation and stream everything
+                    product_prompt = f"""You're a fashion stylist presenting a product. Generate ONLY the following fields, each on a new line:
 
-                    # Title
-                    yield f"event: title\ndata: {{}}\n\n"
-                    content_block = {
-                        "content": [{
-                            "text": product['title'],
-                            "type": "text",
-                            "index": 0
-                        }]
-                    }
-                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+RAW PRODUCT DATA:
+- Title: {product['title']}
+- Price: {product['price']}
+- Brand: {product['brand']}
+- Category: {product['category']}
 
-                    # Price
-                    yield f"event: price\ndata: {{}}\n\n"
-                    content_block = {
-                        "content": [{
-                            "text": product['price'],
-                            "type": "text",
-                            "index": 0
-                        }]
-                    }
-                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+USER PREFERENCES:
+{preferences_str}
 
-                    # Brand
-                    yield f"event: brand\ndata: {{}}\n\n"
-                    content_block = {
-                        "content": [{
-                            "text": product['brand'],
-                            "type": "text",
-                            "index": 0
-                        }]
-                    }
-                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+Generate these fields (output each field's content ONLY, no labels):
 
-                    # Image
+1. TITLE (one line): Create a SHORT, chic product name (3-5 words max, lowercase, gen-z style)
+2. PRICE (one line): Just the price: {product['price']}
+3. BRAND (one line): Just the brand name: {product['brand']}
+4. CAPTION (1-2 sentences): Short styling tip explaining why this works for their outfit
+
+Format:
+[title here]
+[price here]
+[brand here]
+[caption here]
+
+Example output:
+black mini dress
+$45.99
+zara
+perfect for demo day! professional yet stylish and comfortable."""
+
+                    # Stream all fields from Claude
+                    current_field = None
+                    field_order = ["title", "price", "brand", "caption"]
+                    field_index = 0
+
+                    with client.messages.stream(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=200,
+                        messages=[{"role": "user", "content": product_prompt}]
+                    ) as stream:
+                        for text in stream.text_stream:
+                            # Detect field changes by newlines
+                            if '\n' in text and field_index < len(field_order) - 1:
+                                # Move to next field
+                                field_index += 1
+                                if field_index < len(field_order):
+                                    yield f"event: {field_order[field_index]}\ndata: {{}}\n\n"
+                                # Remove the newline from text
+                                text = text.replace('\n', '')
+                                if not text:
+                                    continue
+
+                            # Send first field divider if not sent yet
+                            if current_field is None:
+                                current_field = field_order[0]
+                                yield f"event: {current_field}\ndata: {{}}\n\n"
+
+                            # Stream the text
+                            if text:
+                                content_block = {
+                                    "content": [{
+                                        "text": text,
+                                        "type": "text",
+                                        "index": 0
+                                    }]
+                                }
+                                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+                    # Send image and link as single chunks (not streamed)
                     yield f"event: image\ndata: {{}}\n\n"
                     content_block = {
                         "content": [{
@@ -5790,7 +5814,6 @@ Return ONLY a JSON array of search queries with category labels:
                     }
                     yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
-                    # Link
                     yield f"event: link\ndata: {{}}\n\n"
                     content_block = {
                         "content": [{
@@ -5800,33 +5823,6 @@ Return ONLY a JSON array of search queries with category labels:
                         }]
                     }
                     yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                    # Caption - stream naturally from Claude
-                    yield f"event: caption\ndata: {{}}\n\n"
-
-                    caption_prompt = f"""Generate a SHORT (1-2 sentences) styling tip for this product.
-
-PRODUCT: {product['title']} - {product['price']}
-CATEGORY: {product['category']}
-USER PREFERENCES: {preferences_str}
-
-Write a short, gen-z friendly explanation of why this item works for their outfit. Be specific about styling, fit, or occasion. Keep it 1-2 sentences max."""
-
-                    # Stream caption naturally from Claude
-                    with client.messages.stream(
-                        model="claude-sonnet-4-20250514",
-                        max_tokens=100,
-                        messages=[{"role": "user", "content": caption_prompt}]
-                    ) as stream:
-                        for text in stream.text_stream:
-                            content_block = {
-                                "content": [{
-                                    "text": text,
-                                    "type": "text",
-                                    "index": 0
-                                }]
-                            }
-                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                     logger.info(f"✅ Streamed product: {product['title']}")
 

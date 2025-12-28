@@ -5720,23 +5720,90 @@ Return ONLY a JSON array of search queries with category labels:
                 # Send category header before products
                 if products:
                     yield f"event: category_header\ndata: {{}}\n\n"
-                    # Stream category name character by character
-                    for char in category:
-                        content_block = {
-                            "content": [{
-                                "text": char,
-                                "type": "text",
-                                "index": 0
-                            }]
-                        }
-                        yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                    content_block = {
+                        "content": [{
+                            "text": category,
+                            "type": "text",
+                            "index": 0
+                        }]
+                    }
+                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                 # Immediately process and stream products from this search
                 for product in products:
                     product["category"] = category
                     product_count += 1
 
-                    # Generate caption
+                    # Send product fields as single chunks (they come from Shopping API)
+                    # Category
+                    yield f"event: category\ndata: {{}}\n\n"
+                    content_block = {
+                        "content": [{
+                            "text": product['category'],
+                            "type": "text",
+                            "index": 0
+                        }]
+                    }
+                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+                    # Title
+                    yield f"event: title\ndata: {{}}\n\n"
+                    content_block = {
+                        "content": [{
+                            "text": product['title'],
+                            "type": "text",
+                            "index": 0
+                        }]
+                    }
+                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+                    # Price
+                    yield f"event: price\ndata: {{}}\n\n"
+                    content_block = {
+                        "content": [{
+                            "text": product['price'],
+                            "type": "text",
+                            "index": 0
+                        }]
+                    }
+                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+                    # Brand
+                    yield f"event: brand\ndata: {{}}\n\n"
+                    content_block = {
+                        "content": [{
+                            "text": product['brand'],
+                            "type": "text",
+                            "index": 0
+                        }]
+                    }
+                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+                    # Image
+                    yield f"event: image\ndata: {{}}\n\n"
+                    content_block = {
+                        "content": [{
+                            "text": product['image_url'],
+                            "type": "text",
+                            "index": 0
+                        }]
+                    }
+                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+                    # Link
+                    yield f"event: link\ndata: {{}}\n\n"
+                    content_block = {
+                        "content": [{
+                            "text": product['product_url'],
+                            "type": "text",
+                            "index": 0
+                        }]
+                    }
+                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+                    # Caption - stream naturally from Claude
+                    yield f"event: caption\ndata: {{}}\n\n"
+
                     caption_prompt = f"""Generate a SHORT (1-2 sentences) styling tip for this product.
 
 PRODUCT: {product['title']} - {product['price']}
@@ -5745,63 +5812,21 @@ USER PREFERENCES: {preferences_str}
 
 Write a short, gen-z friendly explanation of why this item works for their outfit. Be specific about styling, fit, or occasion. Keep it 1-2 sentences max."""
 
-                    caption_response = client.messages.create(
+                    # Stream caption naturally from Claude
+                    with client.messages.stream(
                         model="claude-sonnet-4-20250514",
                         max_tokens=100,
                         messages=[{"role": "user", "content": caption_prompt}]
-                    )
-
-                    caption = caption_response.content[0].text.strip()
-
-                    # IMMEDIATELY send events for this product (don't wait for others)
-                    # Each field is a divider with empty data, then stream text character-by-character
-
-                    # Helper function to stream text character by character (Anthropic format)
-                    def stream_text(text):
-                        for char in text:
+                    ) as stream:
+                        for text in stream.text_stream:
                             content_block = {
                                 "content": [{
-                                    "text": char,
+                                    "text": text,
                                     "type": "text",
                                     "index": 0
                                 }]
                             }
                             yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                    # Category
-                    yield f"event: category\ndata: {{}}\n\n"
-                    for chunk in stream_text(product['category']):
-                        yield chunk
-
-                    # Title
-                    yield f"event: title\ndata: {{}}\n\n"
-                    for chunk in stream_text(product['title']):
-                        yield chunk
-
-                    # Price
-                    yield f"event: price\ndata: {{}}\n\n"
-                    for chunk in stream_text(product['price']):
-                        yield chunk
-
-                    # Brand
-                    yield f"event: brand\ndata: {{}}\n\n"
-                    for chunk in stream_text(product['brand']):
-                        yield chunk
-
-                    # Image
-                    yield f"event: image\ndata: {{}}\n\n"
-                    for chunk in stream_text(product['image_url']):
-                        yield chunk
-
-                    # Link
-                    yield f"event: link\ndata: {{}}\n\n"
-                    for chunk in stream_text(product['product_url']):
-                        yield chunk
-
-                    # Caption
-                    yield f"event: caption\ndata: {{}}\n\n"
-                    for chunk in stream_text(caption):
-                        yield chunk
 
                     logger.info(f"✅ Streamed product: {product['title']}")
 

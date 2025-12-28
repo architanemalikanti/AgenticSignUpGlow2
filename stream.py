@@ -5655,7 +5655,9 @@ async def stylist_chat(
         try:
             # Send immediate "searching" event so iOS knows we're working
             yield f"event: searching\ndata: {{}}\n\n"
-            yield f"event: token\ndata: {json.dumps({'text': 'Analyzing your request...'})}\n\n"
+            # Stream the searching message character by character
+            for char in "Analyzing your request...":
+                yield f"event: token\ndata: {json.dumps({'text': char})}\n\n"
 
             # Step 1: Use Claude to analyze request and generate search queries
             from anthropic import Anthropic
@@ -5711,7 +5713,9 @@ Return ONLY a JSON array of search queries with category labels:
                 # Send category header before products
                 if products:
                     yield f"event: category_header\ndata: {{}}\n\n"
-                    yield f"event: token\ndata: {json.dumps({'text': category})}\n\n"
+                    # Stream category name character by character
+                    for char in category:
+                        yield f"event: token\ndata: {json.dumps({'text': char})}\n\n"
 
                 # Immediately process and stream products from this search
                 for product in products:
@@ -5736,35 +5740,47 @@ Write a short, gen-z friendly explanation of why this item works for their outfi
                     caption = caption_response.content[0].text.strip()
 
                     # IMMEDIATELY send events for this product (don't wait for others)
-                    # Each event is empty, followed by a token with the actual text
+                    # Each field is a divider with empty data, then stream text character-by-character
+
+                    # Helper function to stream text character by character
+                    def stream_text(text):
+                        for char in text:
+                            yield f"event: token\ndata: {json.dumps({'text': char})}\n\n"
 
                     # Category
                     yield f"event: category\ndata: {{}}\n\n"
-                    yield f"event: token\ndata: {json.dumps({'text': product['category']})}\n\n"
+                    for chunk in stream_text(product['category']):
+                        yield chunk
 
                     # Title
                     yield f"event: title\ndata: {{}}\n\n"
-                    yield f"event: token\ndata: {json.dumps({'text': product['title']})}\n\n"
+                    for chunk in stream_text(product['title']):
+                        yield chunk
 
                     # Price
                     yield f"event: price\ndata: {{}}\n\n"
-                    yield f"event: token\ndata: {json.dumps({'text': product['price']})}\n\n"
+                    for chunk in stream_text(product['price']):
+                        yield chunk
 
                     # Brand
                     yield f"event: brand\ndata: {{}}\n\n"
-                    yield f"event: token\ndata: {json.dumps({'text': product['brand']})}\n\n"
+                    for chunk in stream_text(product['brand']):
+                        yield chunk
 
                     # Image
                     yield f"event: image\ndata: {{}}\n\n"
-                    yield f"event: token\ndata: {json.dumps({'text': product['image_url']})}\n\n"
+                    for chunk in stream_text(product['image_url']):
+                        yield chunk
 
                     # Link
                     yield f"event: link\ndata: {{}}\n\n"
-                    yield f"event: token\ndata: {json.dumps({'text': product['product_url']})}\n\n"
+                    for chunk in stream_text(product['product_url']):
+                        yield chunk
 
                     # Caption
                     yield f"event: caption\ndata: {{}}\n\n"
-                    yield f"event: token\ndata: {json.dumps({'text': caption})}\n\n"
+                    for chunk in stream_text(caption):
+                        yield chunk
 
                     logger.info(f"✅ Streamed product: {product['title']}")
 

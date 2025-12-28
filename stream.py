@@ -5654,7 +5654,8 @@ async def stylist_chat(
 
         try:
             # Send immediate "searching" event so iOS knows we're working
-            yield f"event: searching\ndata: {json.dumps({'message': 'Analyzing your request...'})}\n\n"
+            yield f"event: searching\ndata: {{}}\n\n"
+            yield f"event: token\ndata: {json.dumps({'text': 'Analyzing your request...'})}\n\n"
 
             # Step 1: Use Claude to analyze request and generate search queries
             from anthropic import Anthropic
@@ -5709,7 +5710,8 @@ Return ONLY a JSON array of search queries with category labels:
 
                 # Send category header before products
                 if products:
-                    yield f"event: category_header\ndata: {json.dumps({'category': category})}\n\n"
+                    yield f"event: category_header\ndata: {{}}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': category})}\n\n"
 
                 # Immediately process and stream products from this search
                 for product in products:
@@ -5734,26 +5736,35 @@ Write a short, gen-z friendly explanation of why this item works for their outfi
                     caption = caption_response.content[0].text.strip()
 
                     # IMMEDIATELY send events for this product (don't wait for others)
-                    # Send title event
-                    yield f"event: title\ndata: {json.dumps({'text': product['title']})}\n\n"
+                    # Each event is empty, followed by a token with the actual text
 
-                    # Send price event
-                    yield f"event: price\ndata: {json.dumps({'text': product['price']})}\n\n"
+                    # Category
+                    yield f"event: category\ndata: {{}}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': product['category']})}\n\n"
 
-                    # Send brand event
-                    yield f"event: brand\ndata: {json.dumps({'text': product['brand']})}\n\n"
+                    # Title
+                    yield f"event: title\ndata: {{}}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': product['title']})}\n\n"
 
-                    # Send image event
-                    yield f"event: image\ndata: {json.dumps({'url': product['image_url']})}\n\n"
+                    # Price
+                    yield f"event: price\ndata: {{}}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': product['price']})}\n\n"
 
-                    # Send link event
-                    yield f"event: link\ndata: {json.dumps({'url': product['product_url']})}\n\n"
+                    # Brand
+                    yield f"event: brand\ndata: {{}}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': product['brand']})}\n\n"
 
-                    # Send caption event
-                    yield f"event: caption\ndata: {json.dumps({'text': caption})}\n\n"
+                    # Image
+                    yield f"event: image\ndata: {{}}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': product['image_url']})}\n\n"
 
-                    # Send category event
-                    yield f"event: category\ndata: {json.dumps({'text': product['category']})}\n\n"
+                    # Link
+                    yield f"event: link\ndata: {{}}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': product['product_url']})}\n\n"
+
+                    # Caption
+                    yield f"event: caption\ndata: {{}}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': caption})}\n\n"
 
                     logger.info(f"✅ Streamed product: {product['title']}")
 

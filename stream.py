@@ -5652,137 +5652,110 @@ async def stylist_chat(
 
         preferences_str = "\n".join(preferences_context) if preferences_context else "No specific preferences provided yet"
 
-        # Build the system prompt
-        stylist_prompt = f"""You are a professional fashion stylist chatbot helping {user_name} find the perfect outfit.
+        try:
+            # Step 1: Use Claude to analyze request and generate search queries
+            from anthropic import Anthropic
+            client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-USER PREFERENCES:
+            analysis_prompt = f"""You are a fashion stylist. Analyze this outfit request and generate 3-5 specific Google Shopping search queries.
+
+USER: {user_name} ({user_gender})
+PREFERENCES:
 {preferences_str}
-Gender: {user_gender}
 
-YOUR JOB:
-1. Ask clarifying questions if needed (about specific preferences, colors, patterns, etc.)
-2. Use the shopping_search_tool to find REAL products from Google Shopping
-3. Recommend complete outfits (tops, bottoms, shoes, accessories, jewelry, makeup)
-4. Explain why each piece works together
-5. Consider their body type, occasion, style preferences, and budget
-6. Always provide: product images, prices, brands, and direct purchase links
+REQUEST: "{q}"
 
-STYLING RULES:
-- Match pieces that look good together (colors, patterns, styles)
-- Consider the occasion and dress code
-- Respect their style preferences (coverage, formality, etc.)
-- Stay within budget
-- Suggest alternatives at different price points
-- Be specific about brands, stores, and prices
-- Group recommendations by category (outfit, shoes, jewelry, makeup, accessories)
+Generate 3-5 specific search queries for Google Shopping. Focus on different categories:
+- Main outfit piece (dress, top+bottom, etc.)
+- Shoes
+- Accessories/Jewelry
+- Makeup (if relevant)
 
-RESPONSE STYLE:
-- Friendly, professional, fashion-forward
-- Use gen-z friendly language but stay professional
-- Keep responses concise and engaging
-- Always provide reasoning for your suggestions
-- Include product images and links in your recommendations
+Return ONLY a JSON array of search queries with category labels:
+{{"searches": [{{"category": "outfit", "query": "black mini dress under 50"}}, {{"category": "shoes", "query": "ankle boots comfortable"}}]}}"""
 
-IMPORTANT: When you use the shopping_search_tool, it returns:
-- Product title
-- Price
-- Brand/Store
-- Product image URL
-- Direct purchase link
-- Ratings (if available)
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=300,
+                messages=[{"role": "user", "content": analysis_prompt}]
+            )
 
-Always share these details with the user so they can see images and buy directly.
+            # Parse search queries
+            import re
+            content = response.content[0].text
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                queries_data = json.loads(json_match.group())
+                searches = queries_data.get("searches", [])
+            else:
+                # Fallback to simple search
+                searches = [{"category": "outfit", "query": q}]
 
-Start by understanding what they need, then search for and suggest specific products with images and links."""
+            logger.info(f"🔍 Generated {len(searches)} search queries")
 
-        messages = [HumanMessage(content=q)]
-        thread = {"configurable": {"thread_id": thread_id}}
+            # Step 2: Search for products for each query
+            from shopping_tools import get_structured_products
 
-        full_response = ""
+            all_products = []
+            for search_item in searches:
+                category = search_item.get("category", "item")
+                query = search_item.get("query", "")
 
-        async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
-            global use_openai_primary
-            primary_model = fallback_model if (use_openai_primary and fallback_model) else model
+                logger.info(f"🛍️ Searching {category}: {query}")
+                products = get_structured_products(query, location or "United States", num_results=3)
 
-            # Add Google Shopping search tool for finding actual products
-            from shopping_tools import shopping_search_tool
+                for product in products:
+                    product["category"] = category
+                    all_products.append(product)
 
-            try:
-                # Create agent with shopping search tool
-                async_abot = Agent(
-                    primary_model,
-                    [shopping_search_tool],  # Google Shopping search
-                    system=stylist_prompt,
-                    checkpointer=async_memory,
-                    fallback_model=fallback_model
+            logger.info(f"✅ Found {len(all_products)} total products")
+
+            # Step 3: Generate styling captions for each product
+            for product in all_products:
+                caption_prompt = f"""Generate a SHORT (1-2 sentences) styling tip for this product.
+
+PRODUCT: {product['title']} - {product['price']}
+CATEGORY: {product['category']}
+USER PREFERENCES: {preferences_str}
+
+Write a short, gen-z friendly explanation of why this item works for their outfit. Be specific about styling, fit, or occasion. Keep it 1-2 sentences max."""
+
+                caption_response = client.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=100,
+                    messages=[{"role": "user", "content": caption_prompt}]
                 )
 
-                async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
-                    # Stream LLM tokens
-                    if ev["event"] == "on_chat_model_stream":
-                        content = ev["data"]["chunk"].content
-                        if content:
-                            # Handle both string and list content
-                            if isinstance(content, str):
-                                content_str = content
-                            elif isinstance(content, list) and len(content) > 0:
-                                content_str = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
-                            else:
-                                content_str = ""
+                product["caption"] = caption_response.content[0].text.strip()
 
-                            if content_str:
-                                full_response += content_str
+            # Step 4: Send structured events for each product
+            for product in all_products:
+                # Send title event
+                yield f"event: title\ndata: {json.dumps({'text': product['title']})}\n\n"
 
-                                # Format content for iOS (Anthropic format)
-                                content_block = {
-                                    "content": [{
-                                        "text": content_str,
-                                        "type": "text",
-                                        "index": 0
-                                    }]
-                                }
-                                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                # Send price event
+                yield f"event: price\ndata: {json.dumps({'text': product['price']})}\n\n"
 
-            except Exception as e:
-                error_str = str(e)
-                is_overload = "overloaded_error" in error_str or "Overloaded" in error_str or "529" in error_str
+                # Send brand event
+                yield f"event: brand\ndata: {json.dumps({'text': product['brand']})}\n\n"
 
-                if is_overload and fallback_model and not use_openai_primary:
-                    logger.info(f"⚠️ Anthropic overloaded! Switching to OpenAI...")
-                    use_openai_primary = True
-                    async_abot = Agent(
-                        fallback_model,
-                        [shopping_search_tool],
-                        system=stylist_prompt,
-                        checkpointer=async_memory,
-                        fallback_model=None
-                    )
+                # Send image event
+                yield f"event: image\ndata: {json.dumps({'url': product['image_url']})}\n\n"
 
-                    async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
-                        if ev["event"] == "on_chat_model_stream":
-                            content = ev["data"]["chunk"].content
-                            if content:
-                                if isinstance(content, str):
-                                    content_str = content
-                                elif isinstance(content, list) and len(content) > 0:
-                                    content_str = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
-                                else:
-                                    content_str = ""
+                # Send link event
+                yield f"event: link\ndata: {json.dumps({'url': product['product_url']})}\n\n"
 
-                                if content_str:
-                                    full_response += content_str
+                # Send caption event
+                yield f"event: caption\ndata: {json.dumps({'text': product['caption']})}\n\n"
 
-                                    content_block = {
-                                        "content": [{
-                                            "text": content_str,
-                                            "type": "text",
-                                            "index": 0
-                                        }]
-                                    }
-                                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-                else:
-                    raise
+                # Optional: Send category event
+                yield f"event: category\ndata: {json.dumps({'text': product['category']})}\n\n"
 
+        except Exception as e:
+            logger.error(f"❌ Error in stylist chat: {e}")
+            yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+
+        # Send done event
         yield "event: done\ndata: {}\n\n"
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}

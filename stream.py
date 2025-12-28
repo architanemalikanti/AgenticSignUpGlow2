@@ -5705,7 +5705,11 @@ Return ONLY a JSON array of search queries with category labels:
                 query = search_item.get("query", "")
 
                 logger.info(f"🛍️ Searching {category}: {query}")
-                products = get_structured_products(query, location or "United States", num_results=3)
+                products = get_structured_products(query, location or "United States", num_results=1)
+
+                # Send category header before products
+                if products:
+                    yield f"event: category_header\ndata: {json.dumps({'category': category})}\n\n"
 
                 # Immediately process and stream products from this search
                 for product in products:

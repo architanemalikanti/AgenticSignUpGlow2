@@ -5765,43 +5765,68 @@ $45.99
 zara
 perfect for demo day! professional yet stylish and comfortable."""
 
-                    # Stream all fields from Claude
-                    current_field = None
-                    field_order = ["title", "price", "brand", "caption"]
-                    field_index = 0
-
+                    # Collect full response from Claude first to ensure proper field boundaries
+                    full_response = ""
                     with client.messages.stream(
                         model="claude-sonnet-4-20250514",
                         max_tokens=200,
                         messages=[{"role": "user", "content": product_prompt}]
                     ) as stream:
                         for text in stream.text_stream:
-                            # Detect field changes by newlines
-                            if '\n' in text and field_index < len(field_order) - 1:
-                                # Move to next field
-                                field_index += 1
-                                if field_index < len(field_order):
-                                    yield f"event: {field_order[field_index]}\ndata: {{}}\n\n"
-                                # Remove the newline from text
-                                text = text.replace('\n', '')
-                                if not text:
-                                    continue
+                            full_response += text
 
-                            # Send first field divider if not sent yet
-                            if current_field is None:
-                                current_field = field_order[0]
-                                yield f"event: {current_field}\ndata: {{}}\n\n"
+                    # Parse into fields by splitting on newlines
+                    lines = full_response.strip().split('\n')
+                    title_text = lines[0].strip() if len(lines) > 0 else ""
+                    price_text = lines[1].strip() if len(lines) > 1 else ""
+                    brand_text = lines[2].strip() if len(lines) > 2 else ""
+                    caption_text = '\n'.join(lines[3:]).strip() if len(lines) > 3 else ""
 
-                            # Stream the text
-                            if text:
-                                content_block = {
-                                    "content": [{
-                                        "text": text,
-                                        "type": "text",
-                                        "index": 0
-                                    }]
-                                }
-                                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                    # Helper function to split text into chunks for streaming
+                    def split_into_chunks(text, chunk_size=10):
+                        """Split text into chunks of approximately chunk_size characters"""
+                        if not text:
+                            return []
+                        chunks = []
+                        words = text.split()
+                        current_chunk = ""
+
+                        for word in words:
+                            if len(current_chunk) + len(word) + 1 <= chunk_size:
+                                current_chunk += (" " if current_chunk else "") + word
+                            else:
+                                if current_chunk:
+                                    chunks.append(current_chunk)
+                                current_chunk = word
+
+                        if current_chunk:
+                            chunks.append(current_chunk)
+
+                        return chunks if chunks else [text]
+
+                    # Stream each field separately
+                    fields_data = [
+                        ("title", title_text),
+                        ("price", price_text),
+                        ("brand", brand_text),
+                        ("caption", caption_text)
+                    ]
+
+                    for field_name, field_text in fields_data:
+                        # Send field divider
+                        yield f"event: {field_name}\ndata: {{}}\n\n"
+
+                        # Stream field content in chunks
+                        chunks = split_into_chunks(field_text, chunk_size=10)
+                        for chunk in chunks:
+                            content_block = {
+                                "content": [{
+                                    "text": chunk,
+                                    "type": "text",
+                                    "index": 0
+                                }]
+                            }
+                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                     # Send image and link as single chunks (not streamed)
                     yield f"event: image\ndata: {{}}\n\n"

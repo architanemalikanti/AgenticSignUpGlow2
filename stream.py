@@ -1292,6 +1292,7 @@ class SimpleSignupRequest(BaseModel):
     instagram_bio: str  # User's original Instagram bio
     gender: str
     ethnicity: str
+    occupation: Optional[str] = None  # User's occupation (optional)
 
 
 @app.post("/signup/simple")
@@ -1308,7 +1309,8 @@ async def simple_signup(request: SimpleSignupRequest):
         "name": "Archita",
         "instagram_bio": "cs @ berkeley | building cool stuff | coffee enthusiast",
         "gender": "female",
-        "ethnicity": "south asian"
+        "ethnicity": "south asian",
+        "occupation": "software engineer"  // optional
     }
 
     Returns:
@@ -1454,6 +1456,7 @@ Return ONE sentence, lowercase."""
                     password=hashed_password,
                     gender=request.gender,
                     ethnicity=request.ethnicity,
+                    occupation=request.occupation,  # Store occupation
                     bio=generated_bio,  # Store AI-generated bio
                     profile_image=profile_image_url,
                     created_at=datetime.utcnow()
@@ -5586,6 +5589,205 @@ async def poll_caption_data(session_id: str):
     except Exception as e:
         logger.error(f"Error polling caption data: {e}")
         return {"status": "error", "error": str(e)}
+
+
+@app.post("/stylist/chat")
+async def stylist_chat(
+    q: str = Query(..., description="User's message about outfit preferences"),
+    user_id: str = Query(..., description="ID of the user requesting outfit advice"),
+    thread_id: str = Query(..., description="Unique ID for this conversation"),
+    body_type: Optional[str] = Query(None, description="Body type preferences (e.g., 'heavy on the bottom')"),
+    occasion: Optional[str] = Query(None, description="Occasion (e.g., 'cruise, christmas eve party')"),
+    style_preferences: Optional[str] = Query(None, description="Style requirements (e.g., 'not low neck, not revealing')"),
+    age: Optional[int] = Query(None, description="User's age"),
+    location: Optional[str] = Query(None, description="Location for shopping"),
+    budget: Optional[str] = Query(None, description="Budget preference (e.g., 'cheapest prices', 'mid-range')")
+):
+    """
+    Streaming chatbot that acts as a fashion stylist.
+    Provides outfit recommendations with real product links.
+
+    Query params:
+    - q: User's message
+    - user_id: User ID
+    - thread_id: Conversation thread ID
+    - body_type: Optional body type preferences
+    - occasion: Optional occasion
+    - style_preferences: Optional style requirements
+    - age: Optional age
+    - location: Optional location
+    - budget: Optional budget preference
+    """
+
+    # Fetch user info from database
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            logger.error(f"❌ User {user_id} not found")
+            return {"status": "error", "message": "User not found"}
+
+        user_name = user.name
+        user_gender = user.gender if user.gender else "not specified"
+
+        logger.info(f"👤 Stylist chat for: {user_name} (gender: {user_gender})")
+    finally:
+        db.close()
+
+    async def event_gen():
+        # Build context from user preferences
+        preferences_context = []
+        if body_type:
+            preferences_context.append(f"Body type: {body_type}")
+        if occasion:
+            preferences_context.append(f"Occasion: {occasion}")
+        if style_preferences:
+            preferences_context.append(f"Style preferences: {style_preferences}")
+        if age:
+            preferences_context.append(f"Age: {age}")
+        if location:
+            preferences_context.append(f"Location: {location}")
+        if budget:
+            preferences_context.append(f"Budget: {budget}")
+
+        preferences_str = "\n".join(preferences_context) if preferences_context else "No specific preferences provided yet"
+
+        # Build the system prompt
+        stylist_prompt = f"""You are a professional fashion stylist chatbot helping {user_name} find the perfect outfit.
+
+USER PREFERENCES:
+{preferences_str}
+Gender: {user_gender}
+
+YOUR JOB:
+1. Ask clarifying questions if needed (about specific preferences, colors, patterns, etc.)
+2. Search for REAL products from actual stores/websites
+3. Recommend complete outfits (tops, bottoms, shoes, accessories)
+4. Explain why each piece works together
+5. Consider their body type, occasion, style preferences, and budget
+6. Provide direct links to products when possible
+
+STYLING RULES:
+- Match pieces that look good together (colors, patterns, styles)
+- Consider the occasion and dress code
+- Respect their style preferences (coverage, formality, etc.)
+- Stay within budget
+- Suggest alternatives at different price points
+- Be specific about brands, stores, and prices
+
+RESPONSE STYLE:
+- Friendly, professional, fashion-forward
+- Use gen-z friendly language but stay professional
+- Keep responses concise (2-4 sentences per message)
+- Always provide reasoning for your suggestions
+
+When searching for products, use the search tool to find actual items with:
+- Product name
+- Brand
+- Store/website
+- Price
+- Direct link
+
+Start by understanding what they need, then search for and suggest specific products."""
+
+        messages = [HumanMessage(content=q)]
+        thread = {"configurable": {"thread_id": thread_id}}
+
+        full_response = ""
+
+        async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
+            global use_openai_primary
+            primary_model = fallback_model if (use_openai_primary and fallback_model) else model
+
+            # Add web search tool for finding actual products
+            from langchain_community.tools.tavily_search import TavilySearchResults
+            search_tool = TavilySearchResults(
+                max_results=5,
+                search_depth="advanced",
+                include_answer=True,
+                include_raw_content=False
+            )
+
+            try:
+                # Create agent with search tool
+                async_abot = Agent(
+                    primary_model,
+                    [search_tool],  # Include web search
+                    system=stylist_prompt,
+                    checkpointer=async_memory,
+                    fallback_model=fallback_model
+                )
+
+                async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
+                    # Stream LLM tokens
+                    if ev["event"] == "on_chat_model_stream":
+                        content = ev["data"]["chunk"].content
+                        if content:
+                            # Handle both string and list content
+                            if isinstance(content, str):
+                                content_str = content
+                            elif isinstance(content, list) and len(content) > 0:
+                                content_str = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+                            else:
+                                content_str = ""
+
+                            if content_str:
+                                full_response += content_str
+
+                                # Format content for iOS (Anthropic format)
+                                content_block = {
+                                    "content": [{
+                                        "text": content_str,
+                                        "type": "text",
+                                        "index": 0
+                                    }]
+                                }
+                                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+            except Exception as e:
+                error_str = str(e)
+                is_overload = "overloaded_error" in error_str or "Overloaded" in error_str or "529" in error_str
+
+                if is_overload and fallback_model and not use_openai_primary:
+                    logger.info(f"⚠️ Anthropic overloaded! Switching to OpenAI...")
+                    use_openai_primary = True
+                    async_abot = Agent(
+                        fallback_model,
+                        [search_tool],
+                        system=stylist_prompt,
+                        checkpointer=async_memory,
+                        fallback_model=None
+                    )
+
+                    async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
+                        if ev["event"] == "on_chat_model_stream":
+                            content = ev["data"]["chunk"].content
+                            if content:
+                                if isinstance(content, str):
+                                    content_str = content
+                                elif isinstance(content, list) and len(content) > 0:
+                                    content_str = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+                                else:
+                                    content_str = ""
+
+                                if content_str:
+                                    full_response += content_str
+
+                                    content_block = {
+                                        "content": [{
+                                            "text": content_str,
+                                            "type": "text",
+                                            "index": 0
+                                        }]
+                                    }
+                                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                else:
+                    raise
+
+        yield "event: done\ndata: {}\n\n"
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)
 
 
 if __name__ == "__main__":

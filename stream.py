@@ -5661,11 +5661,11 @@ Gender: {user_gender}
 
 YOUR JOB:
 1. Ask clarifying questions if needed (about specific preferences, colors, patterns, etc.)
-2. Search for REAL products from actual stores/websites
-3. Recommend complete outfits (tops, bottoms, shoes, accessories)
+2. Use the shopping_search_tool to find REAL products from Google Shopping
+3. Recommend complete outfits (tops, bottoms, shoes, accessories, jewelry, makeup)
 4. Explain why each piece works together
 5. Consider their body type, occasion, style preferences, and budget
-6. Provide direct links to products when possible
+6. Always provide: product images, prices, brands, and direct purchase links
 
 STYLING RULES:
 - Match pieces that look good together (colors, patterns, styles)
@@ -5674,21 +5674,26 @@ STYLING RULES:
 - Stay within budget
 - Suggest alternatives at different price points
 - Be specific about brands, stores, and prices
+- Group recommendations by category (outfit, shoes, jewelry, makeup, accessories)
 
 RESPONSE STYLE:
 - Friendly, professional, fashion-forward
 - Use gen-z friendly language but stay professional
-- Keep responses concise (2-4 sentences per message)
+- Keep responses concise and engaging
 - Always provide reasoning for your suggestions
+- Include product images and links in your recommendations
 
-When searching for products, use the search tool to find actual items with:
-- Product name
-- Brand
-- Store/website
+IMPORTANT: When you use the shopping_search_tool, it returns:
+- Product title
 - Price
-- Direct link
+- Brand/Store
+- Product image URL
+- Direct purchase link
+- Ratings (if available)
 
-Start by understanding what they need, then search for and suggest specific products."""
+Always share these details with the user so they can see images and buy directly.
+
+Start by understanding what they need, then search for and suggest specific products with images and links."""
 
         messages = [HumanMessage(content=q)]
         thread = {"configurable": {"thread_id": thread_id}}
@@ -5699,20 +5704,14 @@ Start by understanding what they need, then search for and suggest specific prod
             global use_openai_primary
             primary_model = fallback_model if (use_openai_primary and fallback_model) else model
 
-            # Add web search tool for finding actual products
-            from langchain_community.tools.tavily_search import TavilySearchResults
-            search_tool = TavilySearchResults(
-                max_results=5,
-                search_depth="advanced",
-                include_answer=True,
-                include_raw_content=False
-            )
+            # Add Google Shopping search tool for finding actual products
+            from shopping_tools import shopping_search_tool
 
             try:
-                # Create agent with search tool
+                # Create agent with shopping search tool
                 async_abot = Agent(
                     primary_model,
-                    [search_tool],  # Include web search
+                    [shopping_search_tool],  # Google Shopping search
                     system=stylist_prompt,
                     checkpointer=async_memory,
                     fallback_model=fallback_model
@@ -5753,7 +5752,7 @@ Start by understanding what they need, then search for and suggest specific prod
                     use_openai_primary = True
                     async_abot = Agent(
                         fallback_model,
-                        [search_tool],
+                        [shopping_search_tool],
                         system=stylist_prompt,
                         checkpointer=async_memory,
                         fallback_model=None

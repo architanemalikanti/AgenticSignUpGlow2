@@ -5653,6 +5653,9 @@ async def stylist_chat(
         preferences_str = "\n".join(preferences_context) if preferences_context else "No specific preferences provided yet"
 
         try:
+            # Send immediate "searching" event so iOS knows we're working
+            yield f"event: searching\ndata: {json.dumps({'message': 'Analyzing your request...'})}\n\n"
+
             # Step 1: Use Claude to analyze request and generate search queries
             from anthropic import Anthropic
             client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -5693,10 +5696,10 @@ Return ONLY a JSON array of search queries with category labels:
 
             logger.info(f"🔍 Generated {len(searches)} search queries")
 
-            # Step 2: Search for products for each query
+            # Step 2 & 3 & 4: Search, generate captions, and stream products immediately
             from shopping_tools import get_structured_products
 
-            all_products = []
+            product_count = 0
             for search_item in searches:
                 category = search_item.get("category", "item")
                 query = search_item.get("query", "")
@@ -5704,15 +5707,13 @@ Return ONLY a JSON array of search queries with category labels:
                 logger.info(f"🛍️ Searching {category}: {query}")
                 products = get_structured_products(query, location or "United States", num_results=3)
 
+                # Immediately process and stream products from this search
                 for product in products:
                     product["category"] = category
-                    all_products.append(product)
+                    product_count += 1
 
-            logger.info(f"✅ Found {len(all_products)} total products")
-
-            # Step 3: Generate styling captions for each product
-            for product in all_products:
-                caption_prompt = f"""Generate a SHORT (1-2 sentences) styling tip for this product.
+                    # Generate caption
+                    caption_prompt = f"""Generate a SHORT (1-2 sentences) styling tip for this product.
 
 PRODUCT: {product['title']} - {product['price']}
 CATEGORY: {product['category']}
@@ -5720,36 +5721,37 @@ USER PREFERENCES: {preferences_str}
 
 Write a short, gen-z friendly explanation of why this item works for their outfit. Be specific about styling, fit, or occasion. Keep it 1-2 sentences max."""
 
-                caption_response = client.messages.create(
-                    model="claude-sonnet-4-20250514",
-                    max_tokens=100,
-                    messages=[{"role": "user", "content": caption_prompt}]
-                )
+                    caption_response = client.messages.create(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=100,
+                        messages=[{"role": "user", "content": caption_prompt}]
+                    )
 
-                product["caption"] = caption_response.content[0].text.strip()
+                    caption = caption_response.content[0].text.strip()
 
-            # Step 4: Send structured events for each product
-            for product in all_products:
-                # Send title event
-                yield f"event: title\ndata: {json.dumps({'text': product['title']})}\n\n"
+                    # IMMEDIATELY send events for this product (don't wait for others)
+                    # Send title event
+                    yield f"event: title\ndata: {json.dumps({'text': product['title']})}\n\n"
 
-                # Send price event
-                yield f"event: price\ndata: {json.dumps({'text': product['price']})}\n\n"
+                    # Send price event
+                    yield f"event: price\ndata: {json.dumps({'text': product['price']})}\n\n"
 
-                # Send brand event
-                yield f"event: brand\ndata: {json.dumps({'text': product['brand']})}\n\n"
+                    # Send brand event
+                    yield f"event: brand\ndata: {json.dumps({'text': product['brand']})}\n\n"
 
-                # Send image event
-                yield f"event: image\ndata: {json.dumps({'url': product['image_url']})}\n\n"
+                    # Send image event
+                    yield f"event: image\ndata: {json.dumps({'url': product['image_url']})}\n\n"
 
-                # Send link event
-                yield f"event: link\ndata: {json.dumps({'url': product['product_url']})}\n\n"
+                    # Send link event
+                    yield f"event: link\ndata: {json.dumps({'url': product['product_url']})}\n\n"
 
-                # Send caption event
-                yield f"event: caption\ndata: {json.dumps({'text': product['caption']})}\n\n"
+                    # Send caption event
+                    yield f"event: caption\ndata: {json.dumps({'text': caption})}\n\n"
 
-                # Optional: Send category event
-                yield f"event: category\ndata: {json.dumps({'text': product['category']})}\n\n"
+                    # Send category event
+                    yield f"event: category\ndata: {json.dumps({'text': product['category']})}\n\n"
+
+                    logger.info(f"✅ Streamed product: {product['title']}")
 
         except Exception as e:
             logger.error(f"❌ Error in stylist chat: {e}")

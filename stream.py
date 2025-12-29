@@ -5591,6 +5591,99 @@ async def poll_caption_data(session_id: str):
         return {"status": "error", "error": str(e)}
 
 
+@app.get("/test/stream-events")
+async def test_stream_events():
+    """Test route for streaming title and caption events"""
+
+    async def event_gen():
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+            test_prompt = """Generate a random fashion product presentation with two parts, each on a new line:
+
+1. TITLE (one line): A chic product name in lowercase gen-z style, 3-5 words max
+2. CAPTION (one line): A short styling tip, 1-2 sentences, casual tone, lowercase
+
+Format:
+[title here]
+[caption here]
+
+Example:
+black mini dress
+perfect for date night, pair with heels and a leather jacket"""
+
+            # Stream from Claude, switching between title and caption on newline
+            field_order = ["title", "caption"]
+            current_field_index = 0
+            field_started = False
+
+            with client.messages.stream(
+                model="claude-sonnet-4-20250514",
+                max_tokens=150,
+                messages=[{"role": "user", "content": test_prompt}]
+            ) as stream:
+                for text in stream.text_stream:
+                    # Check if this chunk contains newline(s)
+                    if '\n' in text:
+                        parts = text.split('\n')
+
+                        # Send first part to current field
+                        if not field_started:
+                            yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
+                            field_started = True
+
+                        if parts[0]:
+                            content_block = {
+                                "content": [{
+                                    "text": parts[0],
+                                    "type": "text",
+                                    "index": 0
+                                }]
+                            }
+                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+                        # Move to next field for each newline
+                        for i in range(1, len(parts)):
+                            current_field_index += 1
+                            if current_field_index < len(field_order):
+                                yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
+
+                            if parts[i]:  # Send text after newline
+                                content_block = {
+                                    "content": [{
+                                        "text": parts[i],
+                                        "type": "text",
+                                        "index": 0
+                                    }]
+                                }
+                                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                    else:
+                        # No newline, stream immediately to current field
+                        if not field_started:
+                            yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
+                            field_started = True
+
+                        if text:
+                            content_block = {
+                                "content": [{
+                                    "text": text,
+                                    "type": "text",
+                                    "index": 0
+                                }]
+                            }
+                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+        except Exception as e:
+            logger.error(f"❌ Error in test stream: {e}")
+            yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+
+        yield "event: done\ndata: {}\n\n"
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)
+
+
 @app.post("/stylist/chat")
 async def stylist_chat(
     q: str = Query(..., description="User's message about outfit preferences"),

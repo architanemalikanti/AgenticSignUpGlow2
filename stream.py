@@ -5717,8 +5717,23 @@ Return ONLY a JSON array of search queries with category labels:
                 logger.info(f"🛍️ Searching {category}: {query}")
                 products = get_structured_products(query, location or "United States", num_results=1)
 
-                # Send category header before products
-                if products:
+                # Immediately process and stream products from this search
+                for product in products:
+                    product["category"] = category
+                    product_count += 1
+
+                    # Send image FIRST as single chunk (not streamed)
+                    yield f"event: image\ndata: {{}}\n\n"
+                    content_block = {
+                        "content": [{
+                            "text": product['image_url'],
+                            "type": "text",
+                            "index": 0
+                        }]
+                    }
+                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+
+                    # Then send category header
                     yield f"event: category_header\ndata: {{}}\n\n"
                     content_block = {
                         "content": [{
@@ -5728,11 +5743,6 @@ Return ONLY a JSON array of search queries with category labels:
                         }]
                     }
                     yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                # Immediately process and stream products from this search
-                for product in products:
-                    product["category"] = category
-                    product_count += 1
 
                     # Have Claude generate better product presentation and stream everything
                     product_prompt = f"""You're a fashion stylist presenting a product. Generate ONLY the following fields, each on a new line:
@@ -5833,17 +5843,7 @@ perfect for demo day! professional yet stylish and comfortable."""
                             }
                             yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
-                    # Send image and link as single chunks (not streamed)
-                    yield f"event: image\ndata: {{}}\n\n"
-                    content_block = {
-                        "content": [{
-                            "text": product['image_url'],
-                            "type": "text",
-                            "index": 0
-                        }]
-                    }
-                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
+                    # Send link as single chunk (not streamed)
                     yield f"event: link\ndata: {{}}\n\n"
                     content_block = {
                         "content": [{

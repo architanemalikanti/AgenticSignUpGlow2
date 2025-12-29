@@ -5653,24 +5653,28 @@ async def stylist_chat(
         preferences_str = "\n".join(preferences_context) if preferences_context else "No specific preferences provided yet"
 
         try:
-            # Send immediate "searching" event so iOS knows we're working
+            # Send searching event
             yield f"event: searching\ndata: {{}}\n\n"
-            # Stream the searching message character by character
-            for char in "Analyzing your request...":
-                content_block = {
-                    "content": [{
-                        "text": char,
-                        "type": "text",
-                        "index": 0
-                    }]
-                }
-                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
-            # Step 1: Use Claude to analyze request and generate search queries
+            # Use Tavily to search for fashion advice
+            from tavily import TavilyClient
+            tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+
+            search_query = f"fashion outfit advice {q} {occasion if occasion else ''} {style_preferences if style_preferences else ''}"
+            logger.info(f"🔍 Searching: {search_query}")
+            search_results = tavily.search(query=search_query, max_results=5)
+
+            # Format search results for Claude
+            search_context = "\n\n".join([
+                f"Source: {result.get('url', 'N/A')}\n{result.get('content', '')}"
+                for result in search_results.get('results', [])
+            ])
+
+            # Have Claude provide fashion advice based on search results
             from anthropic import Anthropic
             client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-            analysis_prompt = f"""You are a fashion stylist. Analyze this outfit request and generate 3-5 specific Google Shopping search queries.
+            stylist_prompt = f"""You're a personal fashion stylist providing outfit advice. Based on the web search results below, give personalized fashion recommendations.
 
 USER: {user_name} ({user_gender})
 PREFERENCES:
@@ -5678,176 +5682,33 @@ PREFERENCES:
 
 REQUEST: "{q}"
 
-Generate 3-5 specific search queries for Google Shopping. Focus on different categories:
-- Main outfit piece (dress, top+bottom, etc.)
-- Shoes
-- Accessories/Jewelry
-- Makeup (if relevant)
+FASHION RESEARCH:
+{search_context}
 
-Return ONLY a JSON array of search queries with category labels:
-{{"searches": [{{"category": "outfit", "query": "black mini dress under 50"}}, {{"category": "shoes", "query": "ankle boots comfortable"}}]}}"""
+Provide fashion advice in a casual, friendly, gen-z tone (lowercase, no emojis). Keep it concise and practical. Focus on:
+- Outfit suggestions
+- Styling tips
+- Color combinations
+- What to look for when shopping
 
-            response = client.messages.create(
+Keep your response conversational and helpful."""
+
+            # Stream Claude's response naturally
+            logger.info(f"💬 Streaming fashion advice...")
+            with client.messages.stream(
                 model="claude-sonnet-4-20250514",
-                max_tokens=300,
-                messages=[{"role": "user", "content": analysis_prompt}]
-            )
-
-            # Parse search queries
-            import re
-            content = response.content[0].text
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                queries_data = json.loads(json_match.group())
-                searches = queries_data.get("searches", [])
-            else:
-                # Fallback to simple search
-                searches = [{"category": "outfit", "query": q}]
-
-            logger.info(f"🔍 Generated {len(searches)} search queries")
-
-            # Step 2 & 3 & 4: Search, generate captions, and stream products immediately
-            from shopping_tools import get_structured_products
-
-            product_count = 0
-            for search_item in searches:
-                category = search_item.get("category", "item")
-                query = search_item.get("query", "")
-
-                logger.info(f"🛍️ Searching {category}: {query}")
-                products = get_structured_products(query, location or "United States", num_results=1)
-
-                # Immediately process and stream products from this search
-                for product in products:
-                    product["category"] = category
-                    product_count += 1
-
-                    # Send image FIRST as single chunk (not streamed)
-                    yield f"event: image\ndata: {{}}\n\n"
+                max_tokens=1000,
+                messages=[{"role": "user", "content": stylist_prompt}]
+            ) as stream:
+                for text in stream.text_stream:
                     content_block = {
                         "content": [{
-                            "text": product['image_url'],
+                            "text": text,
                             "type": "text",
                             "index": 0
                         }]
                     }
                     yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                    # Then send category header
-                    yield f"event: category_header\ndata: {{}}\n\n"
-                    content_block = {
-                        "content": [{
-                            "text": category,
-                            "type": "text",
-                            "index": 0
-                        }]
-                    }
-                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                    # Have Claude generate better product presentation and stream everything
-                    product_prompt = f"""You're a fashion stylist presenting a product. Generate ONLY the following fields, each on a new line:
-
-RAW PRODUCT DATA:
-- Title: {product['title']}
-- Price: {product['price']}
-- Brand: {product['brand']}
-- Category: {product['category']}
-
-USER PREFERENCES:
-{preferences_str}
-
-Generate these fields (output each field's content ONLY, no labels):
-
-1. TITLE (one line): Create a SHORT, chic product name (3-5 words max, lowercase, gen-z style)
-2. PRICE (one line): Just the price: {product['price']}
-3. BRAND (one line): Just the brand name: {product['brand']}
-4. CAPTION (1-2 sentences): Short styling tip explaining why this works for their outfit
-
-Format:
-[title here]
-[price here]
-[brand here]
-[caption here]
-
-Example output:
-black mini dress
-$45.99
-zara
-perfect for demo day! professional yet stylish and comfortable."""
-
-                    # Stream naturally from Claude, handling field boundaries without buffering
-                    field_order = ["title", "price", "brand", "caption"]
-                    current_field_index = 0
-                    field_started = False
-
-                    with client.messages.stream(
-                        model="claude-sonnet-4-20250514",
-                        max_tokens=200,
-                        messages=[{"role": "user", "content": product_prompt}]
-                    ) as stream:
-                        for text in stream.text_stream:
-                            # Check if this chunk contains newline(s)
-                            if '\n' in text:
-                                parts = text.split('\n')
-
-                                # Send first part to current field
-                                if not field_started:
-                                    yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
-                                    field_started = True
-
-                                if parts[0]:
-                                    content_block = {
-                                        "content": [{
-                                            "text": parts[0],
-                                            "type": "text",
-                                            "index": 0
-                                        }]
-                                    }
-                                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                                # Move to next field for each newline
-                                for i in range(1, len(parts)):
-                                    current_field_index += 1
-                                    if current_field_index < len(field_order):
-                                        yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
-
-                                    if parts[i]:  # Send text after newline
-                                        content_block = {
-                                            "content": [{
-                                                "text": parts[i],
-                                                "type": "text",
-                                                "index": 0
-                                            }]
-                                        }
-                                        yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-                            else:
-                                # No newline, stream immediately to current field
-                                if not field_started:
-                                    yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
-                                    field_started = True
-
-                                if text:
-                                    content_block = {
-                                        "content": [{
-                                            "text": text,
-                                            "type": "text",
-                                            "index": 0
-                                        }]
-                                    }
-                                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                    # Send link as single chunk (not streamed)
-                    yield f"event: link\ndata: {{}}\n\n"
-                    content_block = {
-                        "content": [{
-                            "text": product['product_url'],
-                            "type": "text",
-                            "index": 0
-                        }]
-                    }
-                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                    logger.info(f"✅ Streamed product: {product['title']}")
 
         except Exception as e:
             logger.error(f"❌ Error in stylist chat: {e}")

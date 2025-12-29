@@ -5775,11 +5775,10 @@ $45.99
 zara
 perfect for demo day! professional yet stylish and comfortable."""
 
-                    # Stream naturally from Claude, handling field boundaries properly
+                    # Stream naturally from Claude, handling field boundaries without buffering
                     field_order = ["title", "price", "brand", "caption"]
                     current_field_index = 0
                     field_started = False
-                    buffer = ""
 
                     with client.messages.stream(
                         model="claude-sonnet-4-20250514",
@@ -5787,37 +5786,42 @@ perfect for demo day! professional yet stylish and comfortable."""
                         messages=[{"role": "user", "content": product_prompt}]
                     ) as stream:
                         for text in stream.text_stream:
-                            buffer += text
+                            # Check if this chunk contains newline(s)
+                            if '\n' in text:
+                                parts = text.split('\n')
 
-                            # Check if buffer contains newline (field boundary)
-                            if '\n' in buffer:
-                                parts = buffer.split('\n', 1)
-                                text_to_send = parts[0]
-                                buffer = parts[1] if len(parts) > 1 else ""
-
-                                # Send first field divider if not started
+                                # Send first part to current field
                                 if not field_started:
                                     yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
                                     field_started = True
 
-                                # Send the text before newline
-                                if text_to_send:
+                                if parts[0]:
                                     content_block = {
                                         "content": [{
-                                            "text": text_to_send,
+                                            "text": parts[0],
                                             "type": "text",
                                             "index": 0
                                         }]
                                     }
                                     yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
-                                # Move to next field
-                                current_field_index += 1
-                                if current_field_index < len(field_order):
-                                    yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
-                                    field_started = True
+                                # Move to next field for each newline
+                                for i in range(1, len(parts)):
+                                    current_field_index += 1
+                                    if current_field_index < len(field_order):
+                                        yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
+
+                                    if parts[i]:  # Send text after newline
+                                        content_block = {
+                                            "content": [{
+                                                "text": parts[i],
+                                                "type": "text",
+                                                "index": 0
+                                            }]
+                                        }
+                                        yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
                             else:
-                                # No newline yet, send text as part of current field
+                                # No newline, stream immediately to current field
                                 if not field_started:
                                     yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
                                     field_started = True
@@ -5831,17 +5835,6 @@ perfect for demo day! professional yet stylish and comfortable."""
                                         }]
                                     }
                                     yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-
-                        # Send any remaining buffer
-                        if buffer:
-                            content_block = {
-                                "content": [{
-                                    "text": buffer,
-                                    "type": "text",
-                                    "index": 0
-                                }]
-                            }
-                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
                     # Send link as single chunk (not streamed)
                     yield f"event: link\ndata: {{}}\n\n"

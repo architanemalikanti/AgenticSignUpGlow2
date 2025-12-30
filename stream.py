@@ -5611,10 +5611,10 @@ async def test_stream_events(
 
     async def event_gen():
         import asyncio
-        from anthropic import Anthropic
+        from anthropic import AsyncAnthropic
         from shopping_tools import get_structured_products
 
-        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
         # Queue to hold events from both tasks
         event_queue = asyncio.Queue()
@@ -5638,12 +5638,12 @@ Format:
                 current_field_index = 0
                 field_started = False
 
-                with client.messages.stream(
+                async with client.messages.stream(
                     model="claude-sonnet-4-20250514",
                     max_tokens=200,
                     messages=[{"role": "user", "content": outfit_prompt}]
                 ) as stream:
-                    for text in stream.text_stream:
+                    async for text in stream.text_stream:
                         if '\n' in text:
                             parts = text.split('\n')
 
@@ -5674,7 +5674,7 @@ Format:
         async def search_and_stream_items():
             """Task 2: Search for items and stream them"""
             try:
-                # Generate search queries
+                # Generate search queries (run in thread to not block event loop)
                 search_prompt = f"""For outfit request: "{q}"
 
 Generate 5 Google Shopping queries for:
@@ -5687,7 +5687,8 @@ Generate 5 Google Shopping queries for:
 Return JSON:
 {{"searches": ["query1", "query2", "query3", "query4", "query5"]}}"""
 
-                response = client.messages.create(
+                # Now using async client - no need for thread pool
+                response = await client.messages.create(
                     model="claude-sonnet-4-20250514",
                     max_tokens=200,
                     messages=[{"role": "user", "content": search_prompt}]
@@ -5706,8 +5707,13 @@ Return JSON:
                 for idx, query in enumerate(search_queries[:5]):
                     logger.info(f"🔍 Searching for item {idx+1}: {query}")
 
-                    # Search for this item (blocking, but we stream it immediately after)
-                    products = get_structured_products(query, "United States", num_results=1)
+                    # Run blocking search in thread pool so it doesn't block Task 1
+                    products = await asyncio.to_thread(
+                        get_structured_products,
+                        query,
+                        "United States",
+                        num_results=1
+                    )
 
                     if not products:
                         logger.warning(f"⚠️ No products found for query: {query}")
@@ -5738,12 +5744,12 @@ Format:
                     item_field_index = 0
                     item_field_started = False
 
-                    with client.messages.stream(
+                    async with client.messages.stream(
                         model="claude-sonnet-4-20250514",
                         max_tokens=100,
                         messages=[{"role": "user", "content": item_prompt}]
                     ) as stream:
-                        for text in stream.text_stream:
+                        async for text in stream.text_stream:
                             if '\n' in text:
                                 parts = text.split('\n')
 

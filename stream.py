@@ -5593,92 +5593,204 @@ async def poll_caption_data(session_id: str):
 
 @app.get("/test/stream-events")
 async def test_stream_events(
-    q: str = Query("show me something", description="User's message"),
+    q: str = Query("give me an outfit for the eras tour", description="User's outfit request"),
+    user_id: str = Query(..., description="ID of the user"),
     thread_id: str = Query(..., description="Unique conversation thread ID")
 ):
-    """Test route for streaming title and caption events using LangGraph memory"""
+    """Test route: streams intro/title/caption WHILE searching and streaming items in parallel"""
+
+    # Get user info
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        user_name = user.name if user else "you"
+        user_gender = user.gender if user and user.gender else "not specified"
+        user_occupation = user.occupation if user and user.occupation else "student"
+    finally:
+        db.close()
 
     async def event_gen():
-        try:
-            # System prompt for test route
-            test_prompt = """You're a fashion product generator. Generate a random fashion product presentation with two parts, each on a new line:
+        import asyncio
+        from anthropic import Anthropic
+        from shopping_tools import get_structured_products
 
-1. TITLE (one line): A chic product name in lowercase gen-z style, 3-5 words max
-2. CAPTION (one line): A short styling tip, 1-2 sentences, casual tone, lowercase
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+        # Queue to hold events from both tasks
+        event_queue = asyncio.Queue()
+
+        async def stream_intro_title_caption():
+            """Task 1: Stream intro, outfit_title, outfit_caption"""
+            try:
+                outfit_prompt = f"""Generate an outfit intro for {user_name} ({user_gender}, {user_occupation}) requesting: "{q}"
+
+Output exactly 3 lines (lowercase, gen-z, human):
+1. INTRO: fun intro (e.g., "ok eras tour fit coming here we go hehe")
+2. OUTFIT_TITLE: outfit name (e.g., "{user_name}'s eras tour fit")
+3. OUTFIT_CAPTION: subtle caption with context (e.g., "pov she comes out of interning at apple and pulls up to the eras tour with this fit")
 
 Format:
-[title here]
-[caption here]
+[intro]
+[title]
+[caption]"""
 
-Example:
-black mini dress
-perfect for date night, pair with heels and a leather jacket
+                field_order = ["intro", "outfit_title", "outfit_caption"]
+                current_field_index = 0
+                field_started = False
 
-Keep it fresh and varied based on the conversation context."""
+                with client.messages.stream(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=200,
+                    messages=[{"role": "user", "content": outfit_prompt}]
+                ) as stream:
+                    for text in stream.text_stream:
+                        if '\n' in text:
+                            parts = text.split('\n')
 
-            # Prepare messages and thread
-            messages = [HumanMessage(content=q)]
-            thread = {"configurable": {"thread_id": thread_id}}
+                            if not field_started:
+                                await event_queue.put(("event", field_order[current_field_index]))
+                                field_started = True
 
-            # Stream from Claude, switching between title and caption on newline
-            field_order = ["title", "caption"]
-            current_field_index = 0
-            field_started = False
+                            if parts[0]:
+                                await event_queue.put(("token", parts[0]))
 
-            # Use LangGraph with SQLite checkpointer for automatic conversation memory
-            async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
-                async_abot = Agent(
-                    model,
-                    [],  # No tools needed for test route
-                    system=test_prompt,
-                    checkpointer=async_memory  # Automatic memory!
+                            for i in range(1, len(parts)):
+                                current_field_index += 1
+                                if current_field_index < len(field_order):
+                                    await event_queue.put(("event", field_order[current_field_index]))
+
+                                if parts[i]:
+                                    await event_queue.put(("token", parts[i]))
+                        else:
+                            if not field_started:
+                                await event_queue.put(("event", field_order[current_field_index]))
+                                field_started = True
+
+                            await event_queue.put(("token", text))
+
+            except Exception as e:
+                logger.error(f"❌ Error streaming intro/title/caption: {e}")
+
+        async def search_and_stream_items():
+            """Task 2: Search for items and stream them"""
+            try:
+                # Generate search queries
+                search_prompt = f"""For outfit request: "{q}"
+
+Generate 5 Google Shopping queries for:
+1. Main outfit
+2. Shoes
+3. Accessory 1
+4. Accessory 2
+5. Makeup/beauty
+
+Return JSON:
+{{"searches": ["query1", "query2", "query3", "query4", "query5"]}}"""
+
+                response = client.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=200,
+                    messages=[{"role": "user", "content": search_prompt}]
                 )
 
-                async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
-                    # Stream LLM tokens
-                    if ev["event"] == "on_chat_model_stream":
-                        content = ev["data"]["chunk"].content
-                        if content:
-                            # Extract text string for newline detection
-                            # content is already in correct format from LangGraph
-                            if isinstance(content, str):
-                                text_str = content
-                            elif isinstance(content, list) and len(content) > 0:
-                                # Extract text from structured content
-                                text_str = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
-                            else:
-                                text_str = str(content)
+                import re
+                content = response.content[0].text
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    queries_data = json.loads(json_match.group())
+                    search_queries = queries_data.get("searches", [q] * 5)
+                else:
+                    search_queries = [q] * 5
 
-                            # Check if this chunk contains newline(s)
-                            if '\n' in text_str:
-                                parts = text_str.split('\n')
+                # Search for all items
+                items = []
+                for query in search_queries[:5]:
+                    products = get_structured_products(query, "United States", num_results=1)
+                    if products:
+                        items.append(products[0])
 
-                                # Send first part to current field
-                                if not field_started:
-                                    yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
-                                    field_started = True
+                logger.info(f"✅ Found {len(items)} items")
+
+                # Stream each item
+                for item in items:
+                    # Item image
+                    await event_queue.put(("event", "item_image"))
+                    await event_queue.put(("token", item['image_url']))
+
+                    # Generate item details
+                    item_prompt = f"""For product: {item['title']} (${item['price']} from {item['brand']})
+
+Generate 3 lines (lowercase, gen-z):
+1. TITLE: short name (3-4 words)
+2. BRAND: brand name
+3. CAPTION: why it works (1 sentence)
+
+Format:
+[title]
+[brand]
+[caption]"""
+
+                    item_fields = ["item_title", "item_brand", "item_caption"]
+                    item_field_index = 0
+                    item_field_started = False
+
+                    with client.messages.stream(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=100,
+                        messages=[{"role": "user", "content": item_prompt}]
+                    ) as stream:
+                        for text in stream.text_stream:
+                            if '\n' in text:
+                                parts = text.split('\n')
+
+                                if not item_field_started:
+                                    await event_queue.put(("event", item_fields[item_field_index]))
+                                    item_field_started = True
 
                                 if parts[0]:
-                                    yield f"event: token\ndata: {json.dumps({'content': parts[0]})}\n\n"
+                                    await event_queue.put(("token", parts[0]))
 
-                                # Move to next field for each newline
                                 for i in range(1, len(parts)):
-                                    current_field_index += 1
-                                    if current_field_index < len(field_order):
-                                        yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
+                                    item_field_index += 1
+                                    if item_field_index < len(item_fields):
+                                        await event_queue.put(("event", item_fields[item_field_index]))
 
-                                    if parts[i]:  # Send text after newline
-                                        yield f"event: token\ndata: {json.dumps({'content': parts[i]})}\n\n"
+                                    if parts[i]:
+                                        await event_queue.put(("token", parts[i]))
                             else:
-                                # No newline, stream immediately to current field
-                                if not field_started:
-                                    yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
-                                    field_started = True
+                                if not item_field_started:
+                                    await event_queue.put(("event", item_fields[item_field_index]))
+                                    item_field_started = True
 
-                                # Send content directly like chat/stream does
-                                yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+                                await event_queue.put(("token", text))
 
-            logger.info(f"✅ Test stream completed for thread {thread_id}")
+            except Exception as e:
+                logger.error(f"❌ Error searching/streaming items: {e}")
+
+        try:
+            # Run both tasks in parallel
+            task1 = asyncio.create_task(stream_intro_title_caption())
+            task2 = asyncio.create_task(search_and_stream_items())
+
+            # Stream events from queue as they arrive
+            while True:
+                try:
+                    event_type, data = await asyncio.wait_for(event_queue.get(), timeout=0.1)
+
+                    if event_type == "event":
+                        yield f"event: {data}\ndata: {{}}\n\n"
+                    elif event_type == "token":
+                        yield f"event: token\ndata: {json.dumps({'content': data})}\n\n"
+
+                except asyncio.TimeoutError:
+                    # Check if both tasks are done
+                    if task1.done() and task2.done() and event_queue.empty():
+                        break
+                    continue
+
+            # Wait for tasks to complete
+            await task1
+            await task2
 
         except Exception as e:
             logger.error(f"❌ Error in test stream: {e}")

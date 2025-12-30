@@ -5637,8 +5637,11 @@ Keep it fresh and varied based on the conversation context."""
                 async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
                     # Stream LLM tokens
                     if ev["event"] == "on_chat_model_stream":
-                        text = ev["data"]["chunk"].content
-                        if text:
+                        chunk_content = ev["data"]["chunk"].content
+                        if chunk_content:
+                            # chunk_content is a plain string from Claude
+                            text = chunk_content
+
                             # Check if this chunk contains newline(s)
                             if '\n' in text:
                                 parts = text.split('\n')

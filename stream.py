@@ -5702,17 +5702,21 @@ Return JSON:
                 else:
                     search_queries = [q] * 5
 
-                # Search for all items
-                items = []
-                for query in search_queries[:5]:
+                # Search and stream each item immediately as it's found
+                for idx, query in enumerate(search_queries[:5]):
+                    logger.info(f"🔍 Searching for item {idx+1}: {query}")
+
+                    # Search for this item (blocking, but we stream it immediately after)
                     products = get_structured_products(query, "United States", num_results=1)
-                    if products:
-                        items.append(products[0])
 
-                logger.info(f"✅ Found {len(items)} items")
+                    if not products:
+                        logger.warning(f"⚠️ No products found for query: {query}")
+                        continue
 
-                # Stream each item
-                for item in items:
+                    item = products[0]
+                    logger.info(f"✅ Found item {idx+1}: {item['title']}")
+
+                    # Stream this item immediately
                     # Item image
                     await event_queue.put(("event", "item_image"))
                     await event_queue.put(("token", item['image_url']))

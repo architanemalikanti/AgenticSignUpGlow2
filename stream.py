@@ -5592,15 +5592,16 @@ async def poll_caption_data(session_id: str):
 
 
 @app.get("/test/stream-events")
-async def test_stream_events():
-    """Test route for streaming title and caption events"""
+async def test_stream_events(
+    q: str = Query("show me something", description="User's message"),
+    thread_id: str = Query(..., description="Unique conversation thread ID")
+):
+    """Test route for streaming title and caption events using LangGraph memory"""
 
     async def event_gen():
         try:
-            from anthropic import Anthropic
-            client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
-            test_prompt = """Generate a random fashion product presentation with two parts, each on a new line:
+            # System prompt for test route
+            test_prompt = """You're a fashion product generator. Generate a random fashion product presentation with two parts, each on a new line:
 
 1. TITLE (one line): A chic product name in lowercase gen-z style, 3-5 words max
 2. CAPTION (one line): A short styling tip, 1-2 sentences, casual tone, lowercase
@@ -5611,68 +5612,83 @@ Format:
 
 Example:
 black mini dress
-perfect for date night, pair with heels and a leather jacket"""
+perfect for date night, pair with heels and a leather jacket
+
+Keep it fresh and varied based on the conversation context."""
+
+            # Prepare messages and thread
+            messages = [HumanMessage(content=q)]
+            thread = {"configurable": {"thread_id": thread_id}}
 
             # Stream from Claude, switching between title and caption on newline
             field_order = ["title", "caption"]
             current_field_index = 0
             field_started = False
 
-            with client.messages.stream(
-                model="claude-sonnet-4-20250514",
-                max_tokens=150,
-                messages=[{"role": "user", "content": test_prompt}]
-            ) as stream:
-                for text in stream.text_stream:
-                    # Check if this chunk contains newline(s)
-                    if '\n' in text:
-                        parts = text.split('\n')
+            # Use LangGraph with SQLite checkpointer for automatic conversation memory
+            async with AsyncSqliteSaver.from_conn_string(DB_PATH) as async_memory:
+                async_abot = Agent(
+                    model,
+                    [],  # No tools needed for test route
+                    system=test_prompt,
+                    checkpointer=async_memory  # Automatic memory!
+                )
 
-                        # Send first part to current field
-                        if not field_started:
-                            yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
-                            field_started = True
+                async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
+                    # Stream LLM tokens
+                    if ev["event"] == "on_chat_model_stream":
+                        text = ev["data"]["chunk"].content
+                        if text:
+                            # Check if this chunk contains newline(s)
+                            if '\n' in text:
+                                parts = text.split('\n')
 
-                        if parts[0]:
-                            content_block = {
-                                "content": [{
-                                    "text": parts[0],
-                                    "type": "text",
-                                    "index": 0
-                                }]
-                            }
-                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                                # Send first part to current field
+                                if not field_started:
+                                    yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
+                                    field_started = True
 
-                        # Move to next field for each newline
-                        for i in range(1, len(parts)):
-                            current_field_index += 1
-                            if current_field_index < len(field_order):
-                                yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
+                                if parts[0]:
+                                    content_block = {
+                                        "content": [{
+                                            "text": parts[0],
+                                            "type": "text",
+                                            "index": 0
+                                        }]
+                                    }
+                                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
 
-                            if parts[i]:  # Send text after newline
+                                # Move to next field for each newline
+                                for i in range(1, len(parts)):
+                                    current_field_index += 1
+                                    if current_field_index < len(field_order):
+                                        yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
+
+                                    if parts[i]:  # Send text after newline
+                                        content_block = {
+                                            "content": [{
+                                                "text": parts[i],
+                                                "type": "text",
+                                                "index": 0
+                                            }]
+                                        }
+                                        yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                            else:
+                                # No newline, stream immediately to current field
+                                if not field_started:
+                                    yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
+                                    field_started = True
+
                                 content_block = {
                                     "content": [{
-                                        "text": parts[i],
+                                        "text": text,
                                         "type": "text",
                                         "index": 0
                                     }]
                                 }
                                 yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
-                    else:
-                        # No newline, stream immediately to current field
-                        if not field_started:
-                            yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
-                            field_started = True
 
-                        if text:
-                            content_block = {
-                                "content": [{
-                                    "text": text,
-                                    "type": "text",
-                                    "index": 0
-                                }]
-                            }
-                            yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+            logger.info(f"✅ Test stream completed for thread {thread_id}")
 
         except Exception as e:
             logger.error(f"❌ Error in test stream: {e}")

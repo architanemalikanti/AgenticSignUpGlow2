@@ -5625,10 +5625,12 @@ async def test_stream_events(
             try:
                 outfit_prompt = f"""Generate an outfit intro for {user_name} ({user_gender}, {user_ethnicity}, {user_occupation}) requesting: "{q}"
 
-Output exactly 3 lines (lowercase, gen-z, human):
+IMPORTANT: Everything must be lowercase, gen-z casual, human-like.
+
+Output exactly 3 lines:
 1. INTRO: fun intro (e.g., "ok eras tour fit coming here we go hehe")
-2. OUTFIT_TITLE: outfit name (e.g., "{user_name}'s eras tour fit")
-3. OUTFIT_CAPTION: subtle caption with context (e.g., "pov she comes out of interning at apple and pulls up to the eras tour with this fit")
+2. OUTFIT_TITLE: outfit name in all lowercase (e.g., "{user_name.lower()}'s eras tour fit")
+3. OUTFIT_CAPTION: subtle caption in all lowercase with context (e.g., "pov she comes out of interning at apple and pulls up to the eras tour with this fit")
 
 Format:
 [intro]
@@ -5731,10 +5733,12 @@ Return JSON:
                     # Generate item details
                     item_prompt = f"""For product: {item['title']} (${item['price']} from {item['brand']})
 
-Generate 3 lines (lowercase, gen-z):
-1. TITLE: short name (3-4 words)
-2. BRAND: brand name
-3. CAPTION: why it works (1 sentence)
+IMPORTANT: Everything must be all lowercase, gen-z casual, no capitals.
+
+Generate 3 lines:
+1. TITLE: short name in all lowercase (3-4 words, e.g., "sparkly ankle booties")
+2. BRAND: brand name in all lowercase (e.g., "zara")
+3. CAPTION: why it works in all lowercase (1 sentence, e.g., "literally the perfect sparkly moment")
 
 Format:
 [title]

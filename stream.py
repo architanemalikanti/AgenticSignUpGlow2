@@ -5637,14 +5637,21 @@ Keep it fresh and varied based on the conversation context."""
                 async for ev in async_abot.graph.astream_events({"messages": messages}, thread, version="v1"):
                     # Stream LLM tokens
                     if ev["event"] == "on_chat_model_stream":
-                        chunk_content = ev["data"]["chunk"].content
-                        if chunk_content:
-                            # chunk_content is a plain string from Claude
-                            text = chunk_content
+                        content = ev["data"]["chunk"].content
+                        if content:
+                            # Extract text string for newline detection
+                            # content is already in correct format from LangGraph
+                            if isinstance(content, str):
+                                text_str = content
+                            elif isinstance(content, list) and len(content) > 0:
+                                # Extract text from structured content
+                                text_str = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+                            else:
+                                text_str = str(content)
 
                             # Check if this chunk contains newline(s)
-                            if '\n' in text:
-                                parts = text.split('\n')
+                            if '\n' in text_str:
+                                parts = text_str.split('\n')
 
                                 # Send first part to current field
                                 if not field_started:
@@ -5652,14 +5659,7 @@ Keep it fresh and varied based on the conversation context."""
                                     field_started = True
 
                                 if parts[0]:
-                                    content_block = {
-                                        "content": [{
-                                            "text": parts[0],
-                                            "type": "text",
-                                            "index": 0
-                                        }]
-                                    }
-                                    yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                                    yield f"event: token\ndata: {json.dumps({'content': parts[0]})}\n\n"
 
                                 # Move to next field for each newline
                                 for i in range(1, len(parts)):
@@ -5668,28 +5668,15 @@ Keep it fresh and varied based on the conversation context."""
                                         yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
 
                                     if parts[i]:  # Send text after newline
-                                        content_block = {
-                                            "content": [{
-                                                "text": parts[i],
-                                                "type": "text",
-                                                "index": 0
-                                            }]
-                                        }
-                                        yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                                        yield f"event: token\ndata: {json.dumps({'content': parts[i]})}\n\n"
                             else:
                                 # No newline, stream immediately to current field
                                 if not field_started:
                                     yield f"event: {field_order[current_field_index]}\ndata: {{}}\n\n"
                                     field_started = True
 
-                                content_block = {
-                                    "content": [{
-                                        "text": text,
-                                        "type": "text",
-                                        "index": 0
-                                    }]
-                                }
-                                yield f"event: token\ndata: {json.dumps(content_block)}\n\n"
+                                # Send content directly like chat/stream does
+                                yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
 
             logger.info(f"✅ Test stream completed for thread {thread_id}")
 

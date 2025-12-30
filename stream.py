@@ -5593,7 +5593,7 @@ async def poll_caption_data(session_id: str):
 
 @app.get("/test/stream-events")
 async def test_stream_events(
-    q: str = Query("give me an outfit for the eras tour", description="User's outfit request"),
+    q: str = Query(..., description="User's outfit request (e.g., 'give me an outfit for date night', 'outfit for a beach day', etc.)"),
     user_id: str = Query(..., description="ID of the user"),
     thread_id: str = Query(..., description="Unique conversation thread ID")
 ):
@@ -5605,6 +5605,7 @@ async def test_stream_events(
         user = db.query(User).filter(User.id == user_id).first()
         user_name = user.name if user else "you"
         user_gender = user.gender if user and user.gender else "not specified"
+        user_ethnicity = user.ethnicity if user and user.ethnicity else "not specified"
         user_occupation = user.occupation if user and user.occupation else "student"
     finally:
         db.close()
@@ -5622,7 +5623,7 @@ async def test_stream_events(
         async def stream_intro_title_caption():
             """Task 1: Stream intro, outfit_title, outfit_caption"""
             try:
-                outfit_prompt = f"""Generate an outfit intro for {user_name} ({user_gender}, {user_occupation}) requesting: "{q}"
+                outfit_prompt = f"""Generate an outfit intro for {user_name} ({user_gender}, {user_ethnicity}, {user_occupation}) requesting: "{q}"
 
 Output exactly 3 lines (lowercase, gen-z, human):
 1. INTRO: fun intro (e.g., "ok eras tour fit coming here we go hehe")

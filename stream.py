@@ -5630,7 +5630,9 @@ IMPORTANT: Everything must be lowercase, gen-z casual, human-like.
 Output exactly 3 lines:
 1. INTRO: fun intro (e.g., "ok eras tour fit coming here we go hehe")
 2. OUTFIT_TITLE: outfit name in all lowercase (e.g., "{user_name.lower()}'s eras tour fit")
-3. OUTFIT_CAPTION: subtle caption in all lowercase with context (e.g., "pov she comes out of interning at apple and pulls up to the eras tour with this fit")
+3. OUTFIT_CAPTION: SHORT 2-4 word vibe in all lowercase (e.g., "she's js that girl", "lol iconic", "main character energy", "literally her era")
+
+Keep caption super short, chill, relevant to their vibe.
 
 Format:
 [intro]
@@ -5709,6 +5711,10 @@ Return JSON:
                 # Search and stream each item immediately as it's found
                 for idx, query in enumerate(search_queries[:5]):
                     logger.info(f"🔍 Searching for item {idx+1}: {query}")
+
+                    # Add delay to avoid rate limiting (except first request)
+                    if idx > 0:
+                        await asyncio.sleep(1.5)  # 1.5 second delay between searches
 
                     # Run blocking search in thread pool so it doesn't block Task 1
                     products = await asyncio.to_thread(

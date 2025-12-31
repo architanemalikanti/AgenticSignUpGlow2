@@ -5742,8 +5742,8 @@ Return JSON:
 IMPORTANT: Everything must be all lowercase, gen-z casual, no capitals.
 
 Generate 3 lines:
-1. TITLE: short name in all lowercase (3-4 words, e.g., "sparkly ankle booties")
-2. BRAND, PRICE: brand name in all lowercase with the price of the item (e.g., "zara, $15")
+1. TITLE, PRICE: short name in all lowercase, with the price of the item (3-4 words, e.g., "sparkly ankle booties, $15")
+2. BRAND: brand name in all lowercase  (e.g., "zara")
 3. CAPTION: why it works, make it specific to the user's occupation, ethnicity, or background, keep it 7-10 words (1 sentence, e.g., "the shoes you'll wear when shipping product at Apple", "bc this is perfect for ur tech bro vibe"-> occupation)
 
 Format:

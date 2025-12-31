@@ -5625,12 +5625,12 @@ async def test_stream_events(
             try:
                 outfit_prompt = f"""Generate an outfit intro for {user_name} ({user_gender}, {user_ethnicity}, {user_occupation}) requesting: "{q}"
 
-IMPORTANT: Everything must be lowercase, gen-z casual, human-like.
+IMPORTANT: Everything must be lowercase, gen-z casual, human.
 
 Output exactly 3 lines:
 1. INTRO: fun intro (e.g., "ok eras tour fit coming here we go hehe")
 2. OUTFIT_TITLE: outfit name in all lowercase (e.g., "{user_name.lower()}'s eras tour fit")
-3. OUTFIT_CAPTION: SHORT 2-4 word vibe in all lowercase (e.g., "she's js that girl", "lol iconic", "main character energy", "literally her era")
+3. OUTFIT_CAPTION: SHORT 2-7 word describing the user in third person wearing the outfit depending on their occupation, gender, ethnicity ("pov she pulls up to the apple office in this fit like a total girlboss")
 
 Keep caption super short, chill, relevant to their vibe.
 
@@ -5743,8 +5743,8 @@ IMPORTANT: Everything must be all lowercase, gen-z casual, no capitals.
 
 Generate 3 lines:
 1. TITLE: short name in all lowercase (3-4 words, e.g., "sparkly ankle booties")
-2. BRAND: brand name in all lowercase (e.g., "zara")
-3. CAPTION: why it works in all lowercase (1 sentence, e.g., "literally the perfect sparkly moment")
+2. BRAND, PRICE: brand name in all lowercase with the price of the item (e.g., "zara, $15")
+3. CAPTION: why it works, make it specific to the user's occupation, ethnicity, or background (1 sentence, e.g., "the shoes she wears when shipping product at Apple"-> occupation)
 
 Format:
 [title]

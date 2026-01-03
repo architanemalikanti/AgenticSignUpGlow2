@@ -24,7 +24,7 @@ msgpack==1.0.7
 
 # HTTP & Networking
 httpx==0.26.0
-requests==2.31.0
+requests==2.32.3
 aiohttp==3.9.3
 aioapns==3.2
 

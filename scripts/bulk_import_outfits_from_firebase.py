@@ -105,7 +105,7 @@ Examples of good titles:
 Return ONLY the title, nothing else."""
 
         message = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20240620",
+            model="claude-3-opus-20240229",
             max_tokens=100,
             messages=[
                 {

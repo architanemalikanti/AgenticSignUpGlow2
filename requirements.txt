@@ -26,7 +26,7 @@ openai==2.7.1
 tavily-python==0.7.12
 
 # Vector Database
-pinecone==8.0.0
+pinecone==7.3.0
 
 # Serialization & Validation
 pydantic==2.12.4

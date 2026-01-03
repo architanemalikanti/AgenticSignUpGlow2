@@ -233,6 +233,7 @@ class Outfit(Base):
     # Outfit fields (matching SQL schema)
     base_title = Column(String, nullable=False)  # e.g., "1999 celeb caught by paparazzi"
     image_url = Column(String, nullable=False)  # URL/S3 path to outfit image
+    gender = Column(String(20), nullable=True)  # "women", "men", or "unisex"
 
     # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)

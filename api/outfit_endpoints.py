@@ -137,6 +137,7 @@ async def get_outfit_by_id(outfit_id: str, background_tasks: BackgroundTasks):
             "outfit_id": outfit.id,
             "title": title_with_price,
             "image_url": outfit.image_url,
+            "gender": outfit.gender,
             "products": [
                 {
                     "name": p.product_name,
@@ -172,6 +173,7 @@ async def get_all_outfits():
                     "outfit_id": o.id,
                     "title": o.base_title,
                     "image_url": o.image_url,
+                    "gender": o.gender,
                     "created_at": o.created_at.isoformat()
                 }
                 for o in outfits

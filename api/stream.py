@@ -6252,20 +6252,41 @@ async def get_outfit_endpoint(outfit_id: str, background_tasks: BackgroundTasks)
 
 
 @app.get("/outfits/next")
-async def get_next_outfit_endpoint(user_id: str, background_tasks: BackgroundTasks):
+async def get_next_outfit_endpoint(
+    user_id: str,
+    count: int = 10,
+    background_tasks: BackgroundTasks = None
+):
     """
-    Get the next outfit for this user (infinite scroll)
+    Get the next N outfits for this user (Instagram-style batch)
 
-    Each call returns the next unseen outfit.
-    Tracks progress per user in UserProgress table.
+    Returns multiple outfits at once for smooth infinite scrolling.
+    iOS can cache them and display instantly as user swipes.
 
     Query params:
         user_id: User ID from auth token
+        count: Number of outfits to return (default 10)
 
     Returns:
-        Same format as /outfits/{outfit_id}
+        List of outfits: [
+            {
+                "outfit_id": "uuid",
+                "title": "1999 celeb caught by paparazzi, $99",
+                "image_url": "https://...",
+                "gender": "women",
+                "products": [...]
+            },
+            ...
+        ]
+
+    Example:
+        GET /outfits/next?user_id=123&count=10
+        → Returns 10 outfits
+
+        GET /outfits/next?user_id=123&count=1
+        → Returns 1 outfit (backward compatible)
     """
-    return await get_next_outfit(user_id, background_tasks)
+    return await get_next_outfit(user_id, count, background_tasks)
 
 
 if __name__ == "__main__":

@@ -184,18 +184,19 @@ async def get_all_outfits():
         db.close()
 
 
-async def get_next_outfit(user_id: str, background_tasks: BackgroundTasks):
+async def get_next_outfit(user_id: str, count: int, background_tasks: BackgroundTasks):
     """
-    Get the next outfit for this user (infinite scroll style)
+    Get the next N outfits for this user (Instagram-style batch loading)
 
-    Tracks progress per user so each call returns the next unseen outfit.
-    When user reaches the end, loops back to the beginning.
+    Returns multiple outfits at once for smooth infinite scrolling.
+    Tracks progress per user so next call continues where they left off.
 
     Args:
         user_id: User ID from auth token
+        count: Number of outfits to return (default 10, like Instagram)
 
     Returns:
-        Same format as get_outfit_by_id()
+        List of outfits in same format as get_outfit_by_id()
     """
     from database.models import UserProgress
 
@@ -212,80 +213,73 @@ async def get_next_outfit(user_id: str, background_tasks: BackgroundTasks):
         if not all_outfits:
             raise HTTPException(status_code=404, detail="No outfits available")
 
-        # Determine which outfit to return
+        # Determine starting index
         if user_progress:
-            # User has viewed outfits before - get the next one
+            # User has viewed outfits before - start from next one
             current_index = next(
                 (i for i, o in enumerate(all_outfits) if o.id == user_progress.current_outfit_id),
                 -1
             )
-
-            # Get next outfit (loop back to start if at end)
-            next_index = (current_index + 1) % len(all_outfits)
-            next_outfit = all_outfits[next_index]
-
-            # Update progress
-            user_progress.current_outfit_id = next_outfit.id
-            user_progress.last_viewed_at = datetime.utcnow()
-            db.commit()
-
+            start_index = (current_index + 1) % len(all_outfits)
         else:
-            # First time viewing - start at first outfit
-            next_outfit = all_outfits[0]
+            # First time viewing - start at beginning
+            start_index = 0
 
-            # Create progress entry
+        # Get next N outfits (wrapping around if needed)
+        outfits_to_return = []
+        for i in range(count):
+            outfit_index = (start_index + i) % len(all_outfits)
+            outfits_to_return.append(all_outfits[outfit_index])
+
+        # Update progress to last outfit in batch
+        last_outfit = outfits_to_return[-1]
+        if user_progress:
+            user_progress.current_outfit_id = last_outfit.id
+            user_progress.last_viewed_at = datetime.utcnow()
+        else:
             user_progress = UserProgress(
                 user_id=user_id,
-                current_outfit_id=next_outfit.id,
+                current_outfit_id=last_outfit.id,
                 last_viewed_at=datetime.utcnow()
             )
             db.add(user_progress)
-            db.commit()
+        db.commit()
 
-        # Get products for this outfit
-        products = db.query(OutfitProduct).filter(
-            OutfitProduct.outfit_id == next_outfit.id
-        ).order_by(OutfitProduct.rank).all()
+        # Build response for each outfit
+        result = []
+        for outfit in outfits_to_return:
+            # Get products for this outfit
+            products = db.query(OutfitProduct).filter(
+                OutfitProduct.outfit_id == outfit.id
+            ).order_by(OutfitProduct.rank).all()
 
-        # Calculate total price using LLM
-        total_price = calculate_total_price_with_llm(products) if products else "$0"
+            # Calculate total price using LLM
+            total_price = calculate_total_price_with_llm(products) if products else "$0"
 
-        # Build title with price
-        title_with_price = f"{next_outfit.base_title}, {total_price}"
+            # Build title with price
+            title_with_price = f"{outfit.base_title}, {total_price}"
 
-        # Prefetch next 3 outfits in background
-        next_index = (all_outfits.index(next_outfit) + 1) % len(all_outfits)
-        for i in range(3):
-            prefetch_index = (next_index + i) % len(all_outfits)
-            prefetch_outfit = all_outfits[prefetch_index]
+            result.append({
+                "outfit_id": outfit.id,
+                "title": title_with_price,
+                "image_url": outfit.image_url,
+                "gender": outfit.gender,
+                "products": [
+                    {
+                        "name": p.product_name,
+                        "brand": p.brand,
+                        "retailer": p.retailer,
+                        "price": p.price_display,
+                        "image_url": p.product_image_url,
+                        "product_url": p.product_url,
+                        "rank": int(p.rank)
+                    }
+                    for p in products
+                ]
+            })
 
-            # Check if products are cached
-            cached_products = db.query(OutfitProduct).filter(
-                OutfitProduct.outfit_id == prefetch_outfit.id
-            ).count()
-
-            if cached_products == 0:
-                logger.info(f"🔮 Prefetching products for outfit {prefetch_outfit.id}")
-                # TODO: Trigger CV analysis in background
-
-        return {
-            "outfit_id": next_outfit.id,
-            "title": title_with_price,
-            "image_url": next_outfit.image_url,
-            "gender": next_outfit.gender,
-            "products": [
-                {
-                    "name": p.product_name,
-                    "brand": p.brand,
-                    "retailer": p.retailer,
-                    "price": p.price_display,
-                    "image_url": p.product_image_url,
-                    "product_url": p.product_url,
-                    "rank": int(p.rank)
-                }
-                for p in products
-            ]
-        }
+        logger.info(f"📦 Returned batch of {len(result)} outfits for user {user_id}")
+        return result
 
     finally:
         db.close()

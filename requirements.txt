@@ -4,16 +4,15 @@ uvicorn==0.38.0
 python-dotenv==1.2.1
 
 # LangChain & LangGraph
-langchain==1.0.3
-langchain-anthropic==1.0.2
-langchain-community==0.4.1
-langchain-core==1.0.3
-langchain-openai==1.0.2
-langchain-tavily==0.2.13
-langgraph==1.0.2
-langgraph-checkpoint==3.0.1
-langgraph-checkpoint-sqlite==3.0.0
-langsmith==0.4.41
+langchain==0.3.13
+langchain-anthropic==0.3.7
+langchain-community==0.3.13
+langchain-core==0.3.28
+langchain-openai==0.2.14
+langgraph==0.2.62
+langgraph-checkpoint==2.0.10
+langgraph-checkpoint-sqlite==2.0.6
+langsmith==0.2.7
 
 # Database
 SQLAlchemy==2.0.44

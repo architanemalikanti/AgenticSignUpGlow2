@@ -2,7 +2,7 @@ import requests
 import datetime
 import json, uuid
 from langchain_core.tools import tool
-from redis_client import r
+from utils.redis_client import r
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from database.models import User
@@ -554,7 +554,7 @@ def finalize_login(session_id: str) -> str:
     Args:
         session_id: The session ID
     """
-    from jwt_utils import create_access_token, create_refresh_token
+    from utils.jwt_utils import create_access_token, create_refresh_token
 
     session_data = get_session_data(session_id)
 

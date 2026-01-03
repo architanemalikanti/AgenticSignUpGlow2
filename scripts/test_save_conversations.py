@@ -2,7 +2,7 @@
 """
 Test script to save conversations for an existing session.
 """
-from finalize_user import save_conversations_to_postgres
+from scripts.finalize_user import save_conversations_to_postgres
 import logging
 
 # Set up logging

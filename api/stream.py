@@ -12,13 +12,13 @@ from pydantic import BaseModel
 from typing import List, Optional
 from database.db import SessionLocal
 from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment
-from agent import Agent
-from prompt_manager import set_prompt
-from redis_client import r
+from services.agent import Agent
+from utils.prompt_manager import set_prompt
+from utils.redis_client import r
 from aioapns import APNs, NotificationRequest
 
-# Load .env from the same directory as this script
-load_dotenv(Path(__file__).parent / ".env")
+# Load .env from the root directory
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Configure logging
 logging.basicConfig(
@@ -28,10 +28,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Get absolute path to conversations database
-DB_PATH = str(Path(__file__).parent / "conversations.db")
+DB_PATH = str(Path(__file__).parent.parent / "conversations.db")
 
 # --- Tools ---
-from tools import (
+from tools.tools import (
     create_redis_session,
     set_username,
     set_password,
@@ -57,7 +57,7 @@ from tools import (
     finalize_login
 )
 # Use the finalize_user version for background tasks
-from finalize_user import test_verification_code
+from scripts.finalize_user import test_verification_code
 
 tool = TavilySearchResults(max_results=2)
 
@@ -149,7 +149,7 @@ async def chat_stream(q: str = Query(""), session_id: str = Query(...)):
     async def event_gen():
         import threading
         import time
-        from finalize_user import finalize_user_background
+        from scripts.finalize_user import finalize_user_background
         
         # Generate dynamic prompt based on current Redis state
         dynamic_prompt = set_prompt(session_id)
@@ -282,7 +282,7 @@ async def simple_onboarding_stream(q: str = Query(""), session_id: str = Query(.
     - session_id: unique session identifier (required)
     """
     async def event_gen():
-        from simple_onboarding_tools import (
+        from tools.simple_onboarding_tools import (
             set_simple_name,
             set_simple_username,
             set_simple_password,
@@ -292,7 +292,7 @@ async def simple_onboarding_stream(q: str = Query(""), session_id: str = Query(.
             set_simple_occupation,
             finalize_simple_signup
         )
-        from tools import (
+        from tools.tools import (
             get_user_gender,
             get_email,
             generate_verification_code,
@@ -302,9 +302,9 @@ async def simple_onboarding_stream(q: str = Query(""), session_id: str = Query(.
             verify_login_credentials,
             finalize_login
         )
-        from finalize_user import test_verification_code
+        from scripts.finalize_user import test_verification_code
         import json
-        from redis_client import r
+        from utils.redis_client import r
 
         # Get current session status from Redis
         redis_key = f"session:{session_id}"
@@ -852,7 +852,7 @@ the user will then upload an image, and when they do, output sayin smth describi
             logger.info(f"✅ Auto-triggering post creation (images uploaded). redis_id: {redis_id}")
 
             # Start background task
-            from post_tools import create_post_from_conversation
+            from tools.post_tools import create_post_from_conversation
             asyncio.create_task(
                 create_post_from_conversation(redis_id, user_id, thread_id, media_urls, DB_PATH)
             )
@@ -1051,7 +1051,7 @@ async def get_mixed_feed(user_id: str, offset: int = 0, limit: int = 20):
         db.close()
 
         # Step 2: Generate 1 AI group
-        from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+        from services.profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
         logger.info(f"🤖 Generating 1 AI group for mixed feed")
 
@@ -1256,7 +1256,7 @@ async def login(request: LoginRequest):
             }
 
         # Generate JWT tokens
-        from jwt_utils import create_access_token, create_refresh_token
+        from utils.jwt_utils import create_access_token, create_refresh_token
         access_token = create_access_token(user.id)
         refresh_token = create_refresh_token(user.id)
 
@@ -1442,7 +1442,7 @@ Return ONE sentence, lowercase."""
                 # Get cartoon avatar for females
                 profile_image_url = None
                 if request.gender.lower() == 'female':
-                    from avatar_helper import get_cartoon_avatar
+                    from utils.avatar_helper import get_cartoon_avatar
                     profile_image_url = get_cartoon_avatar(request.gender, request.ethnicity)
                     logger.info(f"🎨 Selected avatar: {profile_image_url}")
 
@@ -1469,18 +1469,18 @@ Return ONE sentence, lowercase."""
                 logger.info(f"✅ Created user {user_id} (@{request.username})")
 
                 # Create profile embedding
-                from profile_embeddings import create_user_profile_embedding
+                from services.profile_embeddings import create_user_profile_embedding
                 embedding_result = create_user_profile_embedding(new_user)
                 logger.info(f"📊 Embedding creation: {embedding_result}")
 
                 # Generate JWT tokens
-                from jwt_utils import create_access_token, create_refresh_token
+                from utils.jwt_utils import create_access_token, create_refresh_token
                 access_token = create_access_token(user_id)
                 refresh_token = create_refresh_token(user_id)
 
                 # Generate first feed group (only 1 group)
                 logger.info(f"🔄 Generating first feed for user {user_id}")
-                from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+                from services.profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
                 first_group = None
                 feed_ready = False
@@ -1589,7 +1589,7 @@ async def stream_ai_recommendations(user_id: str):
     """
     async def event_generator():
         try:
-            from profile_embeddings import find_users_from_ai_description
+            from services.profile_embeddings import find_users_from_ai_description
             from anthropic import Anthropic
             from database.db import SessionLocal
             from database.models import User
@@ -1701,7 +1701,7 @@ async def get_ai_recommendations(user_id: str, count: int = 1):
         }
     """
     try:
-        from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+        from services.profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
         # Limit count to max 5
         count = min(count, 5)
@@ -1757,7 +1757,7 @@ async def prefetch_feed(user_id: str):
         }
     """
     try:
-        from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+        from services.profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
         logger.info(f"🔄 Generating feed for user {user_id} (app closing)")
 
@@ -1941,7 +1941,7 @@ async def like_post(post_id: str, request: LikeRequest):
             ).first() is not None
 
             # Generate notification message
-            from push_notifications import send_like_notification
+            from utils.push_notifications import send_like_notification
             await send_like_notification(
                 device_token=post_owner.device_token,
                 liker_name=liker.name,
@@ -3396,7 +3396,7 @@ async def push_era(era_data: EraPush):
         logger.info(f"✅ Posted era for user {era_data.user_id}: {era_data.era_text[:50]}...")
 
         # Send push notifications to all followers
-        from push_notifications import send_era_notification
+        from utils.push_notifications import send_era_notification
 
         # Get all followers of this user
         followers = db.query(Follow).filter(Follow.following_id == era_data.user_id).all()
@@ -3924,7 +3924,7 @@ async def send_follow_request(request_data: FollowRequestCreate):
         "requested_id": "user_b_id"
     }
     """
-    from push_notifications import send_follow_request_notification
+    from utils.push_notifications import send_follow_request_notification
 
     db = SessionLocal()
     try:
@@ -3996,7 +3996,7 @@ async def send_follow_request(request_data: FollowRequestCreate):
             db.commit()
 
             # Send push notification to the followed user
-            from push_notifications import send_new_follower_notification
+            from utils.push_notifications import send_new_follower_notification
             if requested.device_token:
                 await send_new_follower_notification(
                     device_token=requested.device_token,
@@ -4150,7 +4150,7 @@ async def accept_follow_request(request_data: FollowActionRequest):
         "requested_id": "user_b_id"
     }
     """
-    from push_notifications import send_follow_accepted_notification
+    from utils.push_notifications import send_follow_accepted_notification
 
     db = SessionLocal()
     try:
@@ -4703,7 +4703,7 @@ async def delete_account(user_id: str):
     Returns:
         Success/error status
     """
-    from profile_embeddings import index as pinecone_index
+    from services.profile_embeddings import index as pinecone_index
 
     db = SessionLocal()
     try:
@@ -5407,7 +5407,7 @@ async def caption_generation_stream(q: str = Query(""), session_id: str = Query(
     """
     async def event_gen():
         import json
-        from redis_client import r
+        from utils.redis_client import r
         from anthropic import Anthropic
 
         # Get or initialize caption session in Redis
@@ -5613,7 +5613,7 @@ async def test_stream_events(
     async def event_gen():
         import asyncio
         from anthropic import AsyncAnthropic
-        from shopping_tools import get_structured_products
+        from tools.shopping_tools import get_structured_products
 
         client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 

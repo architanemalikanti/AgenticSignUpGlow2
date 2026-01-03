@@ -13,7 +13,7 @@ import uuid
 import asyncio
 from anthropic import Anthropic
 from dotenv import load_dotenv
-from redis_client import r
+from utils.redis_client import r
 
 load_dotenv()
 
@@ -321,7 +321,7 @@ Return ONLY the sentence, no quotes, no explanation."""
 
             if follower_ids:
                 logger.info(f"🔔 Starting notification process for {len(follower_ids)} followers")
-                from push_notifications import send_push_notification
+                from utils.push_notifications import send_push_notification
 
                 # Prepare notification content
                 # Use AI sentence as notification title!

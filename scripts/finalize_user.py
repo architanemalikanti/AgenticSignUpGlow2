@@ -7,11 +7,11 @@ import logging
 from datetime import datetime
 from typing import Optional
 from langchain_core.tools import tool
-from redis_client import r
+from utils.redis_client import r
 from database.db import SessionLocal
 from database.models import User
-from jwt_utils import create_token_pair
-from prompt_manager import set_prompt
+from utils.jwt_utils import create_token_pair
+from utils.prompt_manager import set_prompt
 
 logger = logging.getLogger(__name__)
 

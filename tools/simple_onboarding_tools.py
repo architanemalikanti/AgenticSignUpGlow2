@@ -4,7 +4,7 @@ Collects: name, username, password, confirm password, ethnicity, city, occupatio
 """
 
 from langchain_core.tools import tool
-from redis_client import r
+from utils.redis_client import r
 import json
 import logging
 import bcrypt
@@ -211,7 +211,7 @@ def finalize_simple_signup(session_id: str) -> str:
             profile_image_url = None
 
             if gender == 'female':
-                from avatar_helper import get_cartoon_avatar
+                from utils.avatar_helper import get_cartoon_avatar
                 ethnicity = signup_data.get('ethnicity', '')
                 profile_image_url = get_cartoon_avatar(gender, ethnicity)
                 logger.info(f"🎨 Selected avatar for female/{ethnicity}: {profile_image_url}")
@@ -240,18 +240,18 @@ def finalize_simple_signup(session_id: str) -> str:
             db.refresh(new_user)
 
             # Create profile embedding in Pinecone
-            from profile_embeddings import create_user_profile_embedding
+            from services.profile_embeddings import create_user_profile_embedding
             embedding_result = create_user_profile_embedding(new_user)
             logger.info(f"📊 Embedding creation: {embedding_result}")
 
             # Generate JWT tokens
-            from jwt_utils import create_access_token, create_refresh_token
+            from utils.jwt_utils import create_access_token, create_refresh_token
             access_token = create_access_token(user_id)
             refresh_token = create_refresh_token(user_id)
 
             # Generate first feed group synchronously (only 1 group)
             logger.info(f"🔄 Generating first feed for user {user_id}")
-            from profile_embeddings import generate_ai_groups, find_users_from_ai_description
+            from services.profile_embeddings import generate_ai_groups, find_users_from_ai_description
 
             try:
                 # Generate first AI group description (only 1 group)

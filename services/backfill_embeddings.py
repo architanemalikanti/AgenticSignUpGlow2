@@ -7,7 +7,7 @@ Usage: python backfill_embeddings.py
 
 from database.db import SessionLocal
 from database.models import User
-from profile_embeddings import create_user_profile_embedding
+from services.profile_embeddings import create_user_profile_embedding
 import logging
 
 logging.basicConfig(

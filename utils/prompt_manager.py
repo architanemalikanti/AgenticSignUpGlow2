@@ -1,6 +1,6 @@
 import logging
 import json
-from redis_client import r
+from utils.redis_client import r
 
 logger = logging.getLogger(__name__)
 

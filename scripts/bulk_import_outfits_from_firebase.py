@@ -51,7 +51,18 @@ def init_firebase():
 
 def generate_outfit_title_with_vlm(image_url: str) -> str:
     """
-    Use Claude VLM to analyze outfit image and generate a catchy title
+    think like an editorialist at Vogue: name the moment, not the outfit. 
+Use Claude VLM to analyze outfit image and name the moment. 
+
+here are pattens you can use:
+Time → “south indian princess at golden hour”, “pop star seen slipping out at midnight” 
+
+Social context, imagine what's happening in the scene → “1999 it girl caught by the paparazzi”
+
+"the nyc darling", "rich girls in paris at 7am", "the it girl, 11pm" are other examples setting the scene. 
+
+
+keep the text lowercase, no full sentences. 
 
     Args:
         image_url: Public URL of the outfit image

@@ -6220,7 +6220,7 @@ async def analyze_complete_outfit(
 # Outfit Feed Endpoints for iOS
 # ==========================================
 
-from api.outfit_endpoints import get_outfit_by_id, get_all_outfits
+from api.outfit_endpoints import get_outfit_by_id, get_all_outfits, get_next_outfit
 
 
 @app.get("/outfits/all")
@@ -6249,6 +6249,23 @@ async def get_outfit_endpoint(outfit_id: str, background_tasks: BackgroundTasks)
     Returns title with price: "1999 celeb caught by paparazzi, $99"
     """
     return await get_outfit_by_id(outfit_id, background_tasks)
+
+
+@app.get("/outfits/next")
+async def get_next_outfit_endpoint(user_id: str, background_tasks: BackgroundTasks):
+    """
+    Get the next outfit for this user (infinite scroll)
+
+    Each call returns the next unseen outfit.
+    Tracks progress per user in UserProgress table.
+
+    Query params:
+        user_id: User ID from auth token
+
+    Returns:
+        Same format as /outfits/{outfit_id}
+    """
+    return await get_next_outfit(user_id, background_tasks)
 
 
 if __name__ == "__main__":

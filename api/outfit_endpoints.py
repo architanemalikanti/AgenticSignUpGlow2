@@ -182,3 +182,110 @@ async def get_all_outfits():
 
     finally:
         db.close()
+
+
+async def get_next_outfit(user_id: str, background_tasks: BackgroundTasks):
+    """
+    Get the next outfit for this user (infinite scroll style)
+
+    Tracks progress per user so each call returns the next unseen outfit.
+    When user reaches the end, loops back to the beginning.
+
+    Args:
+        user_id: User ID from auth token
+
+    Returns:
+        Same format as get_outfit_by_id()
+    """
+    from database.models import UserProgress
+
+    db = SessionLocal()
+    try:
+        # Get user's current progress
+        user_progress = db.query(UserProgress).filter(
+            UserProgress.user_id == user_id
+        ).first()
+
+        # Get all outfits ordered by created_at
+        all_outfits = db.query(Outfit).order_by(Outfit.created_at).all()
+
+        if not all_outfits:
+            raise HTTPException(status_code=404, detail="No outfits available")
+
+        # Determine which outfit to return
+        if user_progress:
+            # User has viewed outfits before - get the next one
+            current_index = next(
+                (i for i, o in enumerate(all_outfits) if o.id == user_progress.current_outfit_id),
+                -1
+            )
+
+            # Get next outfit (loop back to start if at end)
+            next_index = (current_index + 1) % len(all_outfits)
+            next_outfit = all_outfits[next_index]
+
+            # Update progress
+            user_progress.current_outfit_id = next_outfit.id
+            user_progress.last_viewed_at = datetime.utcnow()
+            db.commit()
+
+        else:
+            # First time viewing - start at first outfit
+            next_outfit = all_outfits[0]
+
+            # Create progress entry
+            user_progress = UserProgress(
+                user_id=user_id,
+                current_outfit_id=next_outfit.id,
+                last_viewed_at=datetime.utcnow()
+            )
+            db.add(user_progress)
+            db.commit()
+
+        # Get products for this outfit
+        products = db.query(OutfitProduct).filter(
+            OutfitProduct.outfit_id == next_outfit.id
+        ).order_by(OutfitProduct.rank).all()
+
+        # Calculate total price using LLM
+        total_price = calculate_total_price_with_llm(products) if products else "$0"
+
+        # Build title with price
+        title_with_price = f"{next_outfit.base_title}, {total_price}"
+
+        # Prefetch next 3 outfits in background
+        next_index = (all_outfits.index(next_outfit) + 1) % len(all_outfits)
+        for i in range(3):
+            prefetch_index = (next_index + i) % len(all_outfits)
+            prefetch_outfit = all_outfits[prefetch_index]
+
+            # Check if products are cached
+            cached_products = db.query(OutfitProduct).filter(
+                OutfitProduct.outfit_id == prefetch_outfit.id
+            ).count()
+
+            if cached_products == 0:
+                logger.info(f"🔮 Prefetching products for outfit {prefetch_outfit.id}")
+                # TODO: Trigger CV analysis in background
+
+        return {
+            "outfit_id": next_outfit.id,
+            "title": title_with_price,
+            "image_url": next_outfit.image_url,
+            "gender": next_outfit.gender,
+            "products": [
+                {
+                    "name": p.product_name,
+                    "brand": p.brand,
+                    "retailer": p.retailer,
+                    "price": p.price_display,
+                    "image_url": p.product_image_url,
+                    "product_url": p.product_url,
+                    "rank": int(p.rank)
+                }
+                for p in products
+            ]
+        }
+
+    finally:
+        db.close()

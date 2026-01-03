@@ -6,16 +6,23 @@ from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from fastapi import FastAPI, Query, BackgroundTasks
+from fastapi import FastAPI, Query, BackgroundTasks, File, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
+import cv2
+import traceback
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment
+from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment, Outfit, OutfitProduct, UserProgress
 from services.agent import Agent
+from services.fashion_helpers import (
+    DetectedItem, SearchResult, DetectionResponse, SearchResponse, AnalysisResponse,
+    process_image, analyze_style_composition, generate_style_recommendations
+)
 from utils.prompt_manager import set_prompt
 from utils.redis_client import r
 from aioapns import APNs, NotificationRequest
+from datetime import datetime
 
 # Load .env from the root directory
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -5951,6 +5958,297 @@ Keep your response conversational and helpful."""
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_gen(), media_type="text/event-stream", headers=headers)
+
+
+# ==========================================
+# Fashion Detection & Search Endpoints
+# ==========================================
+
+# Global fashion detector and search engine instances
+fashion_detector = None
+fashion_search_engine = None
+
+
+@app.post("/fashion/detect", response_model=DetectionResponse)
+async def detect_fashion_items(file: UploadFile = File(...)):
+    """
+    Detect fashion items in an uploaded image
+
+    Args:
+        file: Image file (JPEG, PNG, etc.)
+
+    Returns:
+        DetectionResponse with detected fashion items
+    """
+    global fashion_detector
+
+    start_time = datetime.now()
+
+    try:
+        # Validate file type
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File must be an image")
+
+        # Read image data
+        image_data = await file.read()
+
+        # Save temporary file for processing
+        temp_path = f"/tmp/fashion_input_{int(start_time.timestamp())}.jpg"
+        opencv_image = await process_image(image_data)
+        cv2.imwrite(temp_path, opencv_image)
+
+        # Detect fashion items
+        detected_items = fashion_detector.detect_items(temp_path)
+
+        # Convert to response format
+        response_items = [
+            DetectedItem(
+                category=item.category,
+                bbox=list(item.bbox),
+                confidence=item.confidence,
+                attributes=item.attributes
+            )
+            for item in detected_items
+        ]
+
+        end_time = datetime.now()
+        processing_time = (end_time - start_time).total_seconds() * 1000
+
+        return DetectionResponse(
+            success=True,
+            timestamp=start_time.isoformat(),
+            detected_items=response_items,
+            processing_time_ms=processing_time
+        )
+
+    except Exception as e:
+        logger.error(f"Detection error: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Detection failed: {str(e)}")
+
+
+@app.post("/fashion/search", response_model=SearchResponse)
+async def search_similar_items(
+    file: UploadFile = File(...),
+    category: Optional[str] = None,
+    max_results: int = 5,
+    price_min: Optional[float] = None,
+    price_max: Optional[float] = None,
+    brand: Optional[str] = None,
+    in_stock_only: bool = False
+):
+    """
+    Search for similar fashion items with advanced filtering
+
+    Args:
+        file: Image file containing the fashion item
+        category: Optional category filter (jacket, bag, etc.)
+        max_results: Maximum number of results to return
+        price_min: Minimum price filter
+        price_max: Maximum price filter
+        brand: Filter by brand name
+        in_stock_only: Only show in-stock items
+
+    Returns:
+        SearchResponse with similar items
+    """
+    global fashion_detector, fashion_search_engine
+
+    start_time = datetime.now()
+
+    try:
+        # Detect items first
+        image_data = await file.read()
+        temp_path = f"/tmp/fashion_search_{int(start_time.timestamp())}.jpg"
+        opencv_image = await process_image(image_data)
+        cv2.imwrite(temp_path, opencv_image)
+
+        detected_items = fashion_detector.detect_items(temp_path)
+
+        if not detected_items:
+            raise HTTPException(status_code=404, detail="No fashion items detected in image")
+
+        # Filter by category if specified
+        if category:
+            filtered_items = [item for item in detected_items if item.category == category]
+            if not filtered_items:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No {category} items detected in image"
+                )
+            search_item = filtered_items[0]  # Use highest confidence
+        else:
+            # Use the highest confidence item
+            search_item = max(detected_items, key=lambda x: x.confidence)
+
+        # Build filter dictionary for Pinecone
+        filters = {}
+        if price_min is not None or price_max is not None:
+            filters["price"] = {}
+            if price_min is not None:
+                filters["price"]["$gte"] = price_min
+            if price_max is not None:
+                filters["price"]["$lte"] = price_max
+
+        if brand:
+            filters["brand"] = {"$eq": brand}
+
+        if in_stock_only:
+            filters["in_stock"] = {"$eq": True}
+
+        # Search for similar items with Pinecone
+        similar_items = fashion_search_engine.search_similar_items(
+            search_item,
+            top_k=max_results,
+            filters=filters if filters else None
+        )
+
+        # Convert to response format
+        response_items = [
+            SearchResult(
+                item_name=item.item_name,
+                brand=item.brand,
+                price=item.price,
+                image_url=item.image_url,
+                product_url=item.product_url,
+                similarity_score=item.similarity_score
+            )
+            for item in similar_items
+        ]
+
+        return SearchResponse(
+            success=True,
+            timestamp=start_time.isoformat(),
+            query_item=DetectedItem(
+                category=search_item.category,
+                bbox=list(search_item.bbox),
+                confidence=search_item.confidence,
+                attributes=search_item.attributes
+            ),
+            similar_items=response_items,
+            total_found=len(response_items)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Search error: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@app.post("/fashion/analyze", response_model=AnalysisResponse)
+async def analyze_complete_outfit(
+    file: UploadFile = File(...),
+    include_recommendations: bool = True
+):
+    """
+    Analyze complete outfit and provide style recommendations
+
+    Args:
+        file: Image file containing the complete outfit
+        include_recommendations: Whether to include style recommendations
+
+    Returns:
+        AnalysisResponse with complete outfit analysis
+    """
+    global fashion_detector, fashion_search_engine
+
+    start_time = datetime.now()
+
+    try:
+        # Process image and detect all items
+        image_data = await file.read()
+        temp_path = f"/tmp/fashion_analyze_{int(start_time.timestamp())}.jpg"
+        opencv_image = await process_image(image_data)
+        cv2.imwrite(temp_path, opencv_image)
+
+        detected_items = fashion_detector.detect_items(temp_path)
+
+        # Search for similar items for each detected item
+        all_search_results = {}
+        for item in detected_items:
+            similar_items = fashion_search_engine.search_similar_items(item, top_k=3)
+            all_search_results[item.category] = [
+                SearchResult(
+                    item_name=result.item_name,
+                    brand=result.brand,
+                    price=result.price,
+                    image_url=result.image_url,
+                    product_url=result.product_url,
+                    similarity_score=result.similarity_score
+                )
+                for result in similar_items
+            ]
+
+        # Analyze outfit composition
+        outfit_analysis = analyze_style_composition(detected_items)
+
+        # Generate recommendations
+        style_recommendations = []
+        if include_recommendations:
+            style_recommendations = generate_style_recommendations(
+                detected_items, all_search_results
+            )
+
+        # Convert detected items to response format
+        response_items = [
+            DetectedItem(
+                category=item.category,
+                bbox=list(item.bbox),
+                confidence=item.confidence,
+                attributes=item.attributes
+            )
+            for item in detected_items
+        ]
+
+        return AnalysisResponse(
+            success=True,
+            timestamp=start_time.isoformat(),
+            outfit_analysis=outfit_analysis,
+            style_recommendations=style_recommendations,
+            detected_items=response_items,
+            all_search_results=all_search_results
+        )
+
+    except Exception as e:
+        logger.error(f"Analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+# ==========================================
+# Outfit Feed Endpoints for iOS
+# ==========================================
+
+from api.outfit_endpoints import get_outfit_by_id, get_all_outfits
+
+
+@app.get("/outfits/all")
+async def get_all_outfits_endpoint():
+    """
+    Get list of all outfits
+
+    iOS calls this on app open to get all outfit IDs
+    Then manages scroll position locally
+    """
+    return await get_all_outfits()
+
+
+@app.get("/outfits/{outfit_id}")
+async def get_outfit_endpoint(outfit_id: str, background_tasks: BackgroundTasks):
+    """
+    Get specific outfit by ID
+
+    iOS calls this when user views an outfit
+
+    Backend:
+    1. Returns outfit with products
+    2. Calculates total price using LLM
+    3. Prefetches next 3 outfits in background
+
+    Returns title with price: "1999 celeb caught by paparazzi, $99"
+    """
+    return await get_outfit_by_id(outfit_id, background_tasks)
 
 
 if __name__ == "__main__":

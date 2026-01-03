@@ -7,7 +7,7 @@ import os
 import logging
 import requests
 from typing import List, Dict, Optional
-from langchain.tools import tool
+from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
 

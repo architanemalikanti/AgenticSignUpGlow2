@@ -1,7 +1,7 @@
 # Core Framework
-fastapi==0.121.0
-uvicorn==0.38.0
-python-dotenv==1.2.1
+fastapi==0.109.2
+uvicorn==0.27.1
+python-dotenv==1.0.1
 
 # LangChain & LangGraph
 langchain==0.3.13
@@ -15,35 +15,35 @@ langgraph-checkpoint-sqlite==2.0.6
 langsmith==0.2.7
 
 # Database
-SQLAlchemy==2.0.44
-psycopg2-binary==2.9.11
-aiosqlite==0.21.0
-redis==7.0.1
+SQLAlchemy==2.0.25
+psycopg2-binary==2.9.9
+aiosqlite==0.19.0
+redis==5.0.1
 
 # AI/ML APIs
-anthropic==0.72.0
-openai==2.7.1
-tavily-python==0.7.12
+anthropic==0.18.1
+openai==1.12.0
+tavily-python==0.3.3
 
 # Vector Database
 pinecone==7.3.0
 
 # Serialization & Validation
-pydantic==2.12.4
-pydantic-settings==2.11.0
-msgpack==1.1.2
+pydantic==2.5.3
+pydantic-settings==2.1.0
+msgpack==1.0.7
 
 # HTTP & Networking
-httpx==0.28.1
-requests==2.32.5
-aiohttp==3.13.2
-aioapns==4.0
+httpx==0.26.0
+requests==2.31.0
+aiohttp==3.9.3
+aioapns==3.2
 
 # Security
-Werkzeug==3.1.3
-email-validator==2.3.0
-PyJWT==2.10.1
-bcrypt==5.0.0
+Werkzeug==3.0.1
+email-validator==2.1.0
+PyJWT==2.8.0
+bcrypt==4.1.2
 
 # Computer Vision & ML
 opencv-python==4.8.1.78
@@ -59,10 +59,10 @@ python-multipart==0.0.6
 google-search-results==2.4.2
 
 # Caching & Rate Limiting
-cachetools==6.2.4
+cachetools==5.3.2
 ratelimit==2.2.1
 
 # Utilities
-python-dateutil==2.9.0.post0
-PyYAML==6.0.3
-click==8.3.0
+python-dateutil==2.8.2
+PyYAML==6.0.1
+click==8.1.7

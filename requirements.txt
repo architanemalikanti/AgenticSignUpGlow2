@@ -29,8 +29,8 @@ tavily-python==0.3.3
 pinecone==7.3.0
 
 # Serialization & Validation
-pydantic==2.5.3
-pydantic-settings==2.1.0
+pydantic==2.7.4
+pydantic-settings==2.3.0
 msgpack==1.0.7
 
 # HTTP & Networking

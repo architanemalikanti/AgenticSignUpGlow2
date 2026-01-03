@@ -51,19 +51,6 @@ def init_firebase():
 
 def generate_outfit_title_with_vlm(image_url: str) -> str:
     """
-    think like an editorialist at Vogue: name the moment, not the outfit. 
-Use Claude VLM to analyze outfit image and name the moment. 
-
-here are pattens you can use:
-Time → “south indian princess at golden hour”, “pop star seen slipping out at midnight” 
-
-Social context, imagine what's happening in the scene → “1999 it girl caught by the paparazzi”
-
-"the nyc darling", "rich girls in paris at 7am", "the it girl, 11pm" are other examples setting the scene. 
-
-
-keep the text lowercase, no full sentences. 
-
     Args:
         image_url: Public URL of the outfit image
 
@@ -85,22 +72,18 @@ keep the text lowercase, no full sentences.
             media_type = "image/jpeg"
 
         # Ask Claude to generate a catchy title
-        prompt = """Analyze this fashion outfit image and create a SHORT, catchy title for it.
+        prompt = """think like an editorialist at Vogue: name the moment, not the outfit. 
+Use Claude VLM to analyze outfit image and name the moment. 
 
-The title should be:
-- 3-6 words max
-- Instagram/TikTok style vibe
-- Capture the aesthetic/era (e.g., "Y2K", "90s", "2000s streetwear", "vintage prep")
-- Sound like a fashion influencer caption
-- NO price info, NO emojis
+here are pattens you can use:
+Time → “south indian princess at golden hour”, “pop star seen slipping out at midnight” 
 
-Examples of good titles:
-- "1999 celeb caught by paparazzi"
-- "Street style icon NYC"
-- "Y2K throwback vibes"
-- "90s grunge queen energy"
-- "Clean girl aesthetic moment"
-- "Old money summer look"
+Social context, imagine what's happening in the scene → “1999 it girl caught by the paparazzi”
+
+"the nyc darling", "rich girls in paris at 7am", "the it girl, 11pm" are other examples setting the scene. 
+
+
+keep the text lowercase, no full sentences. 
 
 Return ONLY the title, nothing else."""
 

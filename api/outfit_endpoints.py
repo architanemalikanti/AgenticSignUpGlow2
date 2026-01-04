@@ -200,17 +200,22 @@ async def get_next_outfit(user_id: str, count: int, background_tasks: Background
     """
     from database.models import UserProgress
 
+    logger.info(f"🔍 get_next_outfit called with user_id={user_id}, count={count}")
+
     db = SessionLocal()
     try:
         # Get user's current progress
         user_progress = db.query(UserProgress).filter(
             UserProgress.user_id == user_id
         ).first()
+        logger.info(f"📊 User progress: {user_progress}")
 
         # Get all outfits ordered by created_at
         all_outfits = db.query(Outfit).order_by(Outfit.created_at).all()
+        logger.info(f"👗 Found {len(all_outfits)} total outfits")
 
         if not all_outfits:
+            logger.error("❌ No outfits available in database")
             raise HTTPException(status_code=404, detail="No outfits available")
 
         # Determine starting index

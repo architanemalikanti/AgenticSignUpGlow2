@@ -73,6 +73,58 @@ Examples:
         return "$0"
 
 
+def search_google_shopping_products(query: str, num_results: int = 10):
+    """
+    Search Google Shopping for products using SerpAPI
+
+    Args:
+        query: Search query (e.g., "black leather jacket women")
+        num_results: Number of results to return
+
+    Returns:
+        List of product dictionaries
+    """
+    api_key = os.getenv("SERPAPI_API_KEY")
+    if not api_key:
+        logger.error("❌ SERPAPI_API_KEY not found in environment")
+        return []
+
+    try:
+        url = "https://serpapi.com/search"
+        params = {
+            "engine": "google_shopping",
+            "q": query,
+            "location": "United States",
+            "gl": "us",
+            "hl": "en",
+            "num": num_results,
+            "api_key": api_key
+        }
+
+        logger.info(f"🛍️ Searching Google Shopping for: {query}")
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        products = []
+        for item in data.get("shopping_results", [])[:num_results]:
+            products.append({
+                "title": item.get("title", ""),
+                "price": item.get("price", "Price not available"),
+                "brand": item.get("source", ""),
+                "image_url": item.get("thumbnail", ""),
+                "product_url": item.get("link", ""),
+                "source": item.get("source", "")
+            })
+
+        logger.info(f"✅ Found {len(products)} products")
+        return products
+
+    except Exception as e:
+        logger.error(f"❌ Error searching Google Shopping: {e}")
+        return []
+
+
 def analyze_outfit_and_cache_products(outfit_id: str, image_url: str):
     """
     Analyze outfit image using Claude VLM and search for products
@@ -87,8 +139,6 @@ def analyze_outfit_and_cache_products(outfit_id: str, image_url: str):
         outfit_id: UUID of the outfit
         image_url: Public URL of the outfit image
     """
-    from product_retrival_computer_vision.tools.shopping_tools import search_google_shopping
-
     db = SessionLocal()
     try:
         logger.info(f"🔍 Analyzing outfit {outfit_id} from {image_url}")
@@ -165,7 +215,7 @@ Focus on the most prominent items (top 3-5). Be specific about colors and styles
 
             # Search Google Shopping
             search_query = f"{item_name} women fashion"
-            products = search_google_shopping(search_query, num_results=3)
+            products = search_google_shopping_products(search_query, num_results=3)
 
             # Save top 3 products
             for product in products[:3]:

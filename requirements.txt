@@ -56,3 +56,10 @@ ratelimit==2.2.1
 python-dateutil==2.8.2
 PyYAML==6.0.1
 click==8.1.7
+
+# CV Pipeline - Object Detection
+ultralytics>=8.0.0         # YOLOv8
+
+# CV Pipeline - Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0

@@ -11,6 +11,10 @@ import logging
 import json
 from anthropic import Anthropic
 import os
+import requests
+import base64
+import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +73,125 @@ Examples:
         return "$0"
 
 
+def analyze_outfit_and_cache_products(outfit_id: str, image_url: str):
+    """
+    Analyze outfit image using Claude VLM and search for products
+
+    Flow:
+    1. Download outfit image
+    2. Use Claude VLM to identify clothing items
+    3. For each item, search Google Shopping
+    4. Save top 3 products per item to OutfitProduct table
+
+    Args:
+        outfit_id: UUID of the outfit
+        image_url: Public URL of the outfit image
+    """
+    from product_retrival_computer_vision.tools.shopping_tools import search_google_shopping
+
+    db = SessionLocal()
+    try:
+        logger.info(f"🔍 Analyzing outfit {outfit_id} from {image_url}")
+
+        # Download image
+        response = requests.get(image_url, timeout=10)
+        response.raise_for_status()
+        image_data = base64.standard_b64encode(response.content).decode("utf-8")
+
+        # Determine media type
+        if image_url.lower().endswith('.png'):
+            media_type = "image/png"
+        elif image_url.lower().endswith('.webp'):
+            media_type = "image/webp"
+        else:
+            media_type = "image/jpeg"
+
+        # Use Claude VLM to detect clothing items
+        prompt = """Analyze this outfit image and list the main clothing items and accessories visible.
+
+For each item, provide:
+1. Item name (e.g., "black leather jacket", "white sneakers")
+2. Brief description of style/details
+
+Return as JSON array:
+[
+    {"item": "black leather jacket", "description": "cropped style with silver zippers"},
+    {"item": "blue denim jeans", "description": "high-waisted straight leg"},
+    ...
+]
+
+Focus on the most prominent items (top 3-5). Be specific about colors and styles."""
+
+        message = anthropic_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=500,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": prompt
+                        }
+                    ],
+                }
+            ],
+        )
+
+        # Parse detected items
+        items_text = message.content[0].text.strip()
+        # Extract JSON from response (Claude might wrap it in markdown)
+        if "```json" in items_text:
+            items_text = items_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in items_text:
+            items_text = items_text.split("```")[1].split("```")[0].strip()
+
+        detected_items = json.loads(items_text)
+        logger.info(f"✅ Detected {len(detected_items)} items in outfit")
+
+        # For each item, search Google Shopping
+        rank = 1
+        for item_data in detected_items[:5]:  # Max 5 items
+            item_name = item_data.get("item", "")
+            description = item_data.get("description", "")
+
+            # Search Google Shopping
+            search_query = f"{item_name} women fashion"
+            products = search_google_shopping(search_query, num_results=3)
+
+            # Save top 3 products
+            for product in products[:3]:
+                outfit_product = OutfitProduct(
+                    outfit_id=outfit_id,
+                    product_name=product["title"],
+                    brand=product["brand"],
+                    retailer=product["source"],
+                    price_display=product["price"],
+                    product_image_url=product["image_url"],
+                    product_url=product["product_url"],
+                    rank=rank
+                )
+                db.add(outfit_product)
+                rank += 1
+
+        db.commit()
+        logger.info(f"✅ Cached {rank-1} products for outfit {outfit_id}")
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error analyzing outfit {outfit_id}: {e}")
+    finally:
+        db.close()
+
+
 async def get_outfit_by_id(outfit_id: str, background_tasks: BackgroundTasks):
     """
     Get specific outfit by ID with caching and prefetching
@@ -108,8 +231,7 @@ async def get_outfit_by_id(outfit_id: str, background_tasks: BackgroundTasks):
         # If no products cached, trigger CV analysis in background
         if not products:
             logger.info(f"⚡ No products cached for outfit {outfit.id}, triggering analysis...")
-            # TODO: Trigger CV analysis here
-            # background_tasks.add_task(analyze_outfit_and_cache, outfit.id, outfit.image_url)
+            background_tasks.add_task(analyze_outfit_and_cache_products, outfit.id, outfit.image_url)
 
         # Calculate total price using LLM
         total_price = calculate_total_price_with_llm(products) if products else "$0"
@@ -130,8 +252,7 @@ async def get_outfit_by_id(outfit_id: str, background_tasks: BackgroundTasks):
 
             if cached_products == 0:
                 logger.info(f"🔮 Prefetching products for outfit {next_outfit.id}")
-                # TODO: Trigger CV analysis in background
-                # background_tasks.add_task(analyze_outfit_and_cache, next_outfit.id, next_outfit.image_url)
+                background_tasks.add_task(analyze_outfit_and_cache_products, next_outfit.id, next_outfit.image_url)
 
         return {
             "outfit_id": outfit.id,
@@ -257,6 +378,11 @@ async def get_next_outfit(user_id: str, count: int, background_tasks: Background
             products = db.query(OutfitProduct).filter(
                 OutfitProduct.outfit_id == outfit.id
             ).order_by(OutfitProduct.rank).all()
+
+            # If no products cached, trigger CV analysis in background
+            if not products:
+                logger.info(f"⚡ No products cached for outfit {outfit.id}, triggering analysis...")
+                background_tasks.add_task(analyze_outfit_and_cache_products, outfit.id, outfit.image_url)
 
             # Calculate total price using LLM
             total_price = calculate_total_price_with_llm(products) if products else "$0"

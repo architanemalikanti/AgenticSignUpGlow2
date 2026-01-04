@@ -160,8 +160,9 @@ def bulk_import_outfits(bucket, folder_path: str = "outfits/"):
             base_title = generate_outfit_title_with_vlm(image_url)
 
             # Create outfit in database
+            outfit_id = str(uuid.uuid4())
             outfit = Outfit(
-                id=str(uuid.uuid4()),
+                id=outfit_id,
                 base_title=base_title,
                 image_url=image_url,
                 gender="women"  # Default to women for now
@@ -171,6 +172,12 @@ def bulk_import_outfits(bucket, folder_path: str = "outfits/"):
             db.commit()
 
             logger.info(f"✅ Imported outfit: {base_title}")
+
+            # Analyze outfit and cache products immediately
+            logger.info(f"🔍 Analyzing outfit to find products...")
+            from api.outfit_endpoints import analyze_outfit_and_cache_products
+            analyze_outfit_and_cache_products(outfit_id, image_url)
+
             imported_count += 1
 
         logger.info(f"\n🎉 Import complete!")

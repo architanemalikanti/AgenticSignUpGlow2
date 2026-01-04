@@ -6234,23 +6234,6 @@ async def get_all_outfits_endpoint():
     return await get_all_outfits()
 
 
-@app.get("/outfits/{outfit_id}")
-async def get_outfit_endpoint(outfit_id: str, background_tasks: BackgroundTasks):
-    """
-    Get specific outfit by ID
-
-    iOS calls this when user views an outfit
-
-    Backend:
-    1. Returns outfit with products
-    2. Calculates total price using LLM
-    3. Prefetches next 3 outfits in background
-
-    Returns title with price: "1999 celeb caught by paparazzi, $99"
-    """
-    return await get_outfit_by_id(outfit_id, background_tasks)
-
-
 @app.get("/outfits/next")
 async def get_next_outfit_endpoint(
     user_id: str,
@@ -6287,6 +6270,23 @@ async def get_next_outfit_endpoint(
         → Returns 1 outfit (backward compatible)
     """
     return await get_next_outfit(user_id, count, background_tasks)
+
+
+@app.get("/outfits/{outfit_id}")
+async def get_outfit_endpoint(outfit_id: str, background_tasks: BackgroundTasks):
+    """
+    Get specific outfit by ID
+
+    iOS calls this when user views an outfit
+
+    Backend:
+    1. Returns outfit with products
+    2. Calculates total price using LLM
+    3. Prefetches next 3 outfits in background
+
+    Returns title with price: "1999 celeb caught by paparazzi, $99"
+    """
+    return await get_outfit_by_id(outfit_id, background_tasks)
 
 
 if __name__ == "__main__":

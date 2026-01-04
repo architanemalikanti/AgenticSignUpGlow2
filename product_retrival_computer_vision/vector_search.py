@@ -35,7 +35,7 @@ class FashionVectorSearch:
 
     def __init__(
         self,
-        index_name: str = "fashion-items",
+        index_name: str = "fashion_items_glow",
         dimension: int = 2048,
         metric: str = "cosine"
     ):

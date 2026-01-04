@@ -60,6 +60,7 @@ click==8.1.7
 # CV Pipeline - Object Detection
 ultralytics>=8.0.0         # YOLOv8
 
-# CV Pipeline - Deep Learning
+# CV Pipeline - Deep Learning (CPU-only for faster installation)
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.0.0
 torchvision>=0.15.0

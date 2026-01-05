@@ -125,112 +125,70 @@ def search_google_shopping_products(query: str, num_results: int = 10):
         return []
 
 
-def analyze_outfit_and_cache_products(outfit_id: str, image_url: str):
+async def analyze_outfit_and_cache_products(outfit_id: str, image_url: str):
     """
-    Analyze outfit image using Claude VLM and search for products
+    Analyze outfit image using CV service (YOLO + Pinecone)
 
     Flow:
-    1. Download outfit image
-    2. Use Claude VLM to identify clothing items
-    3. For each item, search Google Shopping
-    4. Save top 3 products per item to OutfitProduct table
+    1. Download outfit image from Firebase
+    2. Send to CV service for detection + similarity search
+    3. Save top 3 products per detected item to OutfitProduct table
 
     Args:
         outfit_id: UUID of the outfit
-        image_url: Public URL of the outfit image
+        image_url: Public URL of the outfit image (Firebase, S3, etc.)
     """
+    from services.cv_client import get_cv_client
+    import asyncio
+
     db = SessionLocal()
     try:
-        logger.info(f"🔍 Analyzing outfit {outfit_id} from {image_url}")
+        logger.info(f"🔍 Analyzing outfit {outfit_id} with CV service from {image_url}")
 
-        # Download image
+        # Download image from Firebase/S3
         response = requests.get(image_url, timeout=10)
         response.raise_for_status()
-        image_data = base64.standard_b64encode(response.content).decode("utf-8")
+        image_bytes = response.content
 
-        # Determine media type
-        if image_url.lower().endswith('.png'):
-            media_type = "image/png"
-        elif image_url.lower().endswith('.webp'):
-            media_type = "image/webp"
-        else:
-            media_type = "image/jpeg"
+        logger.info(f"📥 Downloaded image: {len(image_bytes)} bytes")
 
-        # Use Claude VLM to detect clothing items
-        prompt = """Analyze this outfit image and list the main clothing items and accessories visible.
+        # Call CV service to analyze outfit
+        cv_client = get_cv_client()
+        result = await cv_client.analyze_outfit(image_bytes=image_bytes, top_k=3)
 
-For each item, provide:
-1. Item name (e.g., "black leather jacket", "white sneakers")
-2. Brief description of style/details
+        items = result.get('items', [])
+        logger.info(f"✅ CV detected {len(items)} items in outfit")
 
-Return as JSON array:
-[
-    {"item": "black leather jacket", "description": "cropped style with silver zippers"},
-    {"item": "blue denim jeans", "description": "high-waisted straight leg"},
-    ...
-]
+        if not items:
+            logger.warning(f"⚠️ No items detected in outfit {outfit_id}")
+            return
 
-Focus on the most prominent items (top 3-5). Be specific about colors and styles."""
-
-        message = anthropic_client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=500,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": image_data,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": prompt
-                        }
-                    ],
-                }
-            ],
-        )
-
-        # Parse detected items
-        items_text = message.content[0].text.strip()
-        # Extract JSON from response (Claude might wrap it in markdown)
-        if "```json" in items_text:
-            items_text = items_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in items_text:
-            items_text = items_text.split("```")[1].split("```")[0].strip()
-
-        detected_items = json.loads(items_text)
-        logger.info(f"✅ Detected {len(detected_items)} items in outfit")
-
-        # For each item, search Google Shopping
+        # Save products to database
         rank = 1
-        for item_data in detected_items[:5]:  # Max 5 items
-            item_name = item_data.get("item", "")
-            description = item_data.get("description", "")
+        for item in items:
+            detected = item['detected_item']
+            similar_products = item['similar_products']
 
-            # Search Google Shopping
-            search_query = f"{item_name} women fashion"
-            products = search_google_shopping_products(search_query, num_results=3)
+            logger.info(f"  Item: {detected['category']} (confidence: {detected['confidence']:.2f})")
 
-            # Save top 3 products
-            for product in products[:3]:
+            # Save top 3 similar products for this item
+            for product in similar_products[:3]:
+                metadata = product['metadata']
+
                 outfit_product = OutfitProduct(
                     outfit_id=outfit_id,
-                    product_name=product["title"],
-                    brand=product["brand"],
-                    retailer=product["source"],
-                    price_display=product["price"],
-                    product_image_url=product["image_url"],
-                    product_url=product["product_url"],
+                    product_name=metadata.get('name', 'Unknown Product'),
+                    brand=metadata.get('brand', 'Unknown'),
+                    retailer=metadata.get('retailer', 'Unknown'),
+                    price_display=metadata.get('price', '$0'),
+                    product_image_url=metadata.get('image_url', ''),
+                    product_url=metadata.get('product_url', ''),
                     rank=rank
                 )
                 db.add(outfit_product)
                 rank += 1
+
+                logger.info(f"    Product {rank-1}: {metadata.get('name', 'N/A')} - {metadata.get('price', 'N/A')}")
 
         db.commit()
         logger.info(f"✅ Cached {rank-1} products for outfit {outfit_id}")

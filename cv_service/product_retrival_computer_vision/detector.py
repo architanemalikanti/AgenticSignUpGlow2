@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Union
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -56,22 +56,27 @@ class FashionDetector:
             7: "accessories"
         }
 
-    def detect_items(self, image_path: str, conf_threshold: float = 0.5) -> List[DetectedItem]:
+    def detect_items(self, image_input: Union[str, np.ndarray], conf_threshold: float = 0.5) -> List[DetectedItem]:
         """
         Detect fashion items in an image
 
         Args:
-            image_path: Path to the outfit image
+            image_input: Either a path to the image file (str) or numpy array (cv2 image)
             conf_threshold: Confidence threshold for detections
 
         Returns:
             List of DetectedItem objects
         """
         try:
-            # Read image
-            image = cv2.imread(image_path)
-            if image is None:
-                raise ValueError(f"Could not read image from {image_path}")
+            # Read image (handle both file path and numpy array)
+            if isinstance(image_input, str):
+                image = cv2.imread(image_input)
+                if image is None:
+                    raise ValueError(f"Could not read image from {image_input}")
+            elif isinstance(image_input, np.ndarray):
+                image = image_input
+            else:
+                raise ValueError(f"Invalid image_input type: {type(image_input)}. Expected str or np.ndarray")
 
             # Run YOLO detection
             results = self.model(image, conf=conf_threshold)

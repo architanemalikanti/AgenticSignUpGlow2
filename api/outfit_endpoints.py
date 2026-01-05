@@ -22,6 +22,35 @@ logger = logging.getLogger(__name__)
 anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 
+def parse_price_to_usd(price_str: str) -> str:
+    """
+    Parse price string to numeric USD value
+
+    Args:
+        price_str: Price string like "$49.99", "₹1,299", "€25.00"
+
+    Returns:
+        Numeric value as string (e.g., "49.99")
+    """
+    try:
+        # Remove currency symbols and commas
+        numeric_str = ''.join(c for c in price_str if c.isdigit() or c == '.')
+
+        if not numeric_str:
+            return "0.0"
+
+        # Convert to float and back to string to normalize
+        value = float(numeric_str)
+
+        # TODO: Add currency conversion if needed
+        # For now, just return the numeric value
+        return str(value)
+
+    except Exception as e:
+        logger.error(f"Error parsing price '{price_str}': {e}")
+        return "0.0"
+
+
 def calculate_total_price_with_llm(products: list) -> str:
     """
     Use LLM to parse product prices and calculate total
@@ -174,13 +203,15 @@ async def analyze_outfit_and_cache_products(outfit_id: str, image_url: str):
             # Save similar products for this item (1 per item)
             for product in similar_products:
                 metadata = product['metadata']
+                price_display = metadata.get('price', '$0')
 
                 outfit_product = OutfitProduct(
                     outfit_id=outfit_id,
                     product_name=metadata.get('name', 'Unknown Product'),
                     brand=metadata.get('brand', 'Unknown'),
                     retailer=metadata.get('retailer', 'Unknown'),
-                    price_display=metadata.get('price', '$0'),
+                    price_display=price_display,
+                    price_value_usd=parse_price_to_usd(price_display),
                     product_image_url=metadata.get('image_url', ''),
                     product_url=metadata.get('product_url', ''),
                     rank=rank

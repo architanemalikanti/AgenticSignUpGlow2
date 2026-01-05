@@ -72,7 +72,7 @@ def calculate_total_price_with_llm(products: list) -> str:
 
 Prices: {', '.join(price_list)}
 
-Return ONLY the total as a number (no currency symbol). If any price is unclear, skip it.
+Return ONLY the numeric total. No words, no currency symbols, just the number.
 
 Examples:
 - "$49.99, $25.00" → 74.99
@@ -86,7 +86,15 @@ Examples:
             messages=[{"role": "user", "content": prompt}]
         )
 
-        total = response.content[0].text.strip()
+        response_text = response.content[0].text.strip()
+
+        # Extract just the numeric value (in case LLM returns extra text)
+        import re
+        numbers = re.findall(r'\d+\.?\d*', response_text)
+        if numbers:
+            total = numbers[-1]  # Take the last number found
+        else:
+            total = "0"
 
         # Format based on currency (detect from first price)
         first_price = price_list[0]

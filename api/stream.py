@@ -23,6 +23,7 @@ from utils.prompt_manager import set_prompt
 from utils.redis_client import r
 from aioapns import APNs, NotificationRequest
 from datetime import datetime
+from api.cv_test_endpoint import router as cv_test_router
 
 # Load .env from the root directory
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -136,6 +137,8 @@ use_openai_primary = False
 # --- FastAPI app + SSE streaming endpoint ---
 app = FastAPI()
 
+# Include CV test endpoints
+app.include_router(cv_test_router)
 
 apns = APNs(
       key='/home/ec2-user/keys/AuthKey_2JXWNB9AAR.p8',

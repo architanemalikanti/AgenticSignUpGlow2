@@ -12,8 +12,8 @@ import logging
 import time
 from pathlib import Path
 
-# Add parent directory to path for imports
-sys.path.append(str(Path(__file__).parent.parent))
+# Add cv_service directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "cv_service"))
 
 from product_retrival_computer_vision import (
     get_feature_extractor,

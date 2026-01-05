@@ -17,8 +17,18 @@ Standalone FastAPI service for computer vision processing.
 
 ### 1. Launch EC2 Instance
 
-**Recommended instance type:** `t3.medium` or better for CPU inference
-- For faster inference, consider GPU instances: `g4dn.xlarge`
+**Recommended instance type:** `g4dn.xlarge` (GPU-enabled)
+- 4 vCPU, 16 GB RAM, NVIDIA T4 GPU
+- **Use "Deep Learning AMI GPU PyTorch (Ubuntu)"** - comes with CUDA + PyTorch pre-installed
+- ~$390/month (~$0.526/hour on-demand)
+- Can use Spot Instances for ~70% savings
+
+**Alternative (CPU-only):** `t3.medium` or `t3.large` for lower traffic/cost
+
+**AMI Selection:**
+When launching EC2, search for: `Deep Learning AMI GPU PyTorch`
+- This includes CUDA 12.x, cuDNN, PyTorch, and all GPU drivers
+- Saves 30+ minutes of setup time
 
 ### 2. Clone Repository
 
@@ -52,10 +62,13 @@ rsync -avz cv_service/ ec2-user@<cv-instance-ip>:~/cv_service/
 
 ```bash
 cd cv_service
-pip install -r requirements.txt
+pip install -r requirements-cv.txt
 ```
 
-**Note:** PyTorch CPU version will be installed (~200MB download). This is much faster than GPU version.
+**Note:**
+- PyTorch with CUDA support will be installed (~2GB download)
+- If using Deep Learning AMI, CUDA drivers are already installed
+- First install will take 5-10 minutes
 
 ### 5. Set Environment Variables
 
@@ -171,21 +184,34 @@ curl -X POST http://localhost:8001/analyze-outfit \
 
 ## Performance
 
-**CPU Inference Times (t3.medium):**
+**GPU Inference Times (g4dn.xlarge with T4):**
+- Detection: ~50-100ms per image
+- Feature extraction: ~30-50ms per item
+- Vector search: <10ms
+- **Total pipeline: ~100-200ms per outfit**
+
+**CPU Inference Times (t3.medium - if using CPU):**
 - Detection: ~500ms per image
 - Feature extraction: ~200ms per item
-- Vector search: <10ms
-
-**GPU Inference Times (g4dn.xlarge):**
-- Detection: ~100ms per image
-- Feature extraction: ~50ms per item
+- **Total pipeline: ~700-1000ms per outfit**
 
 ## Troubleshooting
 
 ### PyTorch Installation Slow
-- The CPU version is used for faster installation (~200MB vs 888MB)
-- Still slow? Try temporarily using a larger instance with better network bandwidth
-- Or use a Deep Learning AMI that comes with PyTorch pre-installed
+- GPU version is ~2GB download (vs 200MB CPU version)
+- Use Deep Learning AMI (Ubuntu) - comes with PyTorch + CUDA pre-installed
+- Or temporarily use larger instance with better network bandwidth
+
+### GPU Not Detected
+```bash
+# Check if GPU is available
+python -c "import torch; print(torch.cuda.is_available())"
+# Should print: True
+
+# Check GPU info
+nvidia-smi
+```
+If False, ensure you're using Deep Learning AMI with CUDA drivers
 
 ### Out of Memory
 - Reduce batch size or image resolution

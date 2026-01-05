@@ -17,7 +17,6 @@ scipy==1.11.4
 # CV Pipeline - Object Detection
 ultralytics>=8.0.0         # YOLOv8
 
-# CV Pipeline - Deep Learning (CPU-only for faster installation)
---extra-index-url https://download.pytorch.org/whl/cpu
+# CV Pipeline - Deep Learning (GPU-enabled with CUDA support)
 torch>=2.0.0
 torchvision>=0.15.0

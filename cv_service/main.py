@@ -237,7 +237,15 @@ async def analyze_outfit(file: UploadFile = File(...), top_k: int = 1):
                     {
                         "product_id": p.product_id,
                         "similarity_score": p.similarity_score,
-                        "metadata": p.metadata
+                        "metadata": {
+                            "name": p.product_name,
+                            "brand": p.brand,
+                            "retailer": p.retailer,
+                            "price": p.price,
+                            "image_url": p.image_url,
+                            "product_url": p.product_url,
+                            "category": p.category
+                        }
                     }
                     for p in similar_products
                 ]

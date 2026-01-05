@@ -38,7 +38,7 @@ BRANDS = [
 ]
 
 CATEGORIES = [
-    "women black dress",
+    "women dress",
     "women white t-shirt",
     "women blue jeans",
     "women leather jacket",
@@ -53,6 +53,12 @@ CATEGORIES = [
     "women ankle boots",
     "women trench coat",
     "women maxi dress"
+    "jhumka earrings",
+    "women trending jackets"
+    "women saree", 
+    "women scarf"
+    "women night out tops"
+    "women palazzo pants"
 ]
 
 # Color keywords for filtering

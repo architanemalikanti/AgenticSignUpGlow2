@@ -187,7 +187,7 @@ async def search_similar_products(request: SearchProductRequest):
 
 
 @app.post("/analyze-outfit")
-async def analyze_outfit(file: UploadFile = File(...), top_k: int = 3):
+async def analyze_outfit(file: UploadFile = File(...), top_k: int = 1):
     """
     Complete pipeline: detect items in outfit and find similar products for each
     """
@@ -219,7 +219,7 @@ async def analyze_outfit(file: UploadFile = File(...), top_k: int = 3):
             similar_products = search_engine.search_similar(
                 query_embedding=embedding,
                 top_k=top_k,
-                category_filter=item.category
+                category_filter=None  # No category filter - use embeddings only
             )
 
             # Encode cropped image

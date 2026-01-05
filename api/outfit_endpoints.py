@@ -152,9 +152,9 @@ async def analyze_outfit_and_cache_products(outfit_id: str, image_url: str):
 
         logger.info(f"📥 Downloaded image: {len(image_bytes)} bytes")
 
-        # Call CV service to analyze outfit
+        # Call CV service to analyze outfit (1 product per detected item)
         cv_client = get_cv_client()
-        result = await cv_client.analyze_outfit(image_bytes=image_bytes, top_k=3)
+        result = await cv_client.analyze_outfit(image_bytes=image_bytes, top_k=1)
 
         items = result.get('items', [])
         logger.info(f"✅ CV detected {len(items)} items in outfit")
@@ -171,8 +171,8 @@ async def analyze_outfit_and_cache_products(outfit_id: str, image_url: str):
 
             logger.info(f"  Item: {detected['category']} (confidence: {detected['confidence']:.2f})")
 
-            # Save top 3 similar products for this item
-            for product in similar_products[:3]:
+            # Save similar products for this item (1 per item)
+            for product in similar_products:
                 metadata = product['metadata']
 
                 outfit_product = OutfitProduct(

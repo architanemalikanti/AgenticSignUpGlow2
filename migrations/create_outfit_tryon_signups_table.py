@@ -4,6 +4,12 @@ Migration: Create outfit_tryon_signups table
 Usage: python migrations/create_outfit_tryon_signups_table.py
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import database module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from database.db import engine
 from sqlalchemy import text
 import logging

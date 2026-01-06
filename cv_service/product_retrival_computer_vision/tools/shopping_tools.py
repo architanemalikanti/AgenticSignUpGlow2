@@ -60,7 +60,7 @@ def search_google_shopping(query: str, location: str = "United States", num_resu
                 "price": item.get("price", "Price not available"),
                 "brand": item.get("source", ""),  # Store/brand name
                 "image_url": item.get("thumbnail", ""),
-                "product_url": item.get("link", ""),
+                "product_url": item.get("product_link", ""),  # Correct field from SerpAPI
                 "source": item.get("source", ""),
                 "rating": item.get("rating", None),
                 "reviews": item.get("reviews", None),

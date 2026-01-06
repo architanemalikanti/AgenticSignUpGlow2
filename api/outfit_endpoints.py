@@ -150,7 +150,7 @@ def search_google_shopping_products(query: str, num_results: int = 10):
                 "price": item.get("price", "Price not available"),
                 "brand": item.get("source", ""),
                 "image_url": item.get("thumbnail", ""),
-                "product_url": item.get("link", ""),
+                "product_url": item.get("product_link", ""),  # Correct field from SerpAPI
                 "source": item.get("source", "")
             })
 

@@ -282,3 +282,20 @@ class UserProgress(Base):
     # Timestamp
     last_viewed_at = Column(DateTime, default=datetime.utcnow)
 
+
+class OutfitTryOnSignup(Base):
+    """Track users who sign up for outfit try-on feature"""
+    __tablename__ = 'outfit_tryon_signups'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign key to users table
+    user_id = Column(String(36), ForeignKey('users.id'), nullable=False, unique=True)
+
+    # Denormalized email for easy export
+    email = Column(String(120), nullable=False)
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+

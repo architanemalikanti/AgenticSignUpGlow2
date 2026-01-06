@@ -13,7 +13,7 @@ from typing import List, Optional
 import cv2
 import traceback
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment, Outfit, OutfitProduct, UserProgress
+from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment, Outfit, OutfitProduct, UserProgress, OutfitTryOnSignup
 from services.agent import Agent
 from services.fashion_helpers import (
     DetectedItem, SearchResult, DetectionResponse, SearchResponse, AnalysisResponse,
@@ -6290,6 +6290,63 @@ async def get_outfit_endpoint(outfit_id: str, background_tasks: BackgroundTasks)
     Returns title with price: "1999 celeb caught by paparazzi, $99"
     """
     return await get_outfit_by_id(outfit_id, background_tasks)
+
+
+class TryOnSignupRequest(BaseModel):
+    user_id: str
+
+
+@app.post("/outfits/tryon/signup")
+async def outfit_tryon_signup(request: TryOnSignupRequest):
+    """
+    Sign up user for outfit try-on feature
+
+    Takes user_id, gets their email, and adds to signup list
+    """
+    db = SessionLocal()
+    try:
+        # Get user by ID
+        user = db.query(User).filter(User.id == request.user_id).first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Check if already signed up
+        existing = db.query(OutfitTryOnSignup).filter(
+            OutfitTryOnSignup.user_id == request.user_id
+        ).first()
+
+        if existing:
+            return {
+                "success": True,
+                "message": "Already signed up",
+                "already_signed_up": True
+            }
+
+        # Create signup entry
+        signup = OutfitTryOnSignup(
+            user_id=request.user_id,
+            email=user.email
+        )
+        db.add(signup)
+        db.commit()
+
+        logger.info(f"✅ User {user.email} signed up for outfit try-on")
+
+        return {
+            "success": True,
+            "message": "Successfully signed up for outfit try-on",
+            "already_signed_up": False
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error signing up user for try-on: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":

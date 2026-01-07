@@ -133,13 +133,20 @@ def search_google_shopping_products(query: str, num_results: int = 10):
             "q": query,
             "gl": "us",
             "hl": "en",
+            "device": "desktop",
+            "no_cache": "false",
             "api_key": api_key
         }
 
-        logger.info(f"🛍️ Searching Google Shopping for: {query}")
-        response = requests.get(url, params=params, timeout=10)
+        logger.info(f"🛍️ Searching Google Shopping Light for: {query}")
+        response = requests.get(url, params=params, timeout=30)
         response.raise_for_status()
         data = response.json()
+
+        # Check for API errors
+        if "error" in data:
+            logger.error(f"❌ SerpAPI error: {data.get('error')}")
+            return []
 
         products = []
         for item in data.get("shopping_results", [])[:num_results]:

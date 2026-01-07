@@ -299,3 +299,18 @@ class OutfitTryOnSignup(Base):
     # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class UserOutfit(Base):
+    """Track which outfits each user has saved/bought"""
+    __tablename__ = 'user_outfits'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign keys
+    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
+    outfit_id = Column(String(36), ForeignKey('outfits.id'), nullable=False)
+
+    # Timestamp
+    saved_at = Column(DateTime, default=datetime.utcnow)
+

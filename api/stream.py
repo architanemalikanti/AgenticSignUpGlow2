@@ -13,7 +13,7 @@ from typing import List, Optional
 import cv2
 import traceback
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment, Outfit, OutfitProduct, UserProgress, OutfitTryOnSignup
+from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment, Outfit, OutfitProduct, UserProgress, OutfitTryOnSignup, UserOutfit
 from services.agent import Agent
 from services.fashion_helpers import (
     DetectedItem, SearchResult, DetectionResponse, SearchResponse, AnalysisResponse,
@@ -6344,6 +6344,146 @@ async def outfit_tryon_signup(request: TryOnSignupRequest):
     except Exception as e:
         db.rollback()
         logger.error(f"❌ Error signing up user for try-on: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+class SaveOutfitRequest(BaseModel):
+    user_id: str
+    outfit_id: str
+
+
+@app.post("/outfits/save")
+async def save_outfit(request: SaveOutfitRequest):
+    """
+    Save/buy an outfit for a user
+
+    When user clicks "buy this fit", iOS sends this request
+    """
+    db = SessionLocal()
+    try:
+        # Check if user exists
+        user = db.query(User).filter(User.id == request.user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Check if outfit exists
+        outfit = db.query(Outfit).filter(Outfit.id == request.outfit_id).first()
+        if not outfit:
+            raise HTTPException(status_code=404, detail="Outfit not found")
+
+        # Check if already saved
+        existing = db.query(UserOutfit).filter(
+            UserOutfit.user_id == request.user_id,
+            UserOutfit.outfit_id == request.outfit_id
+        ).first()
+
+        if existing:
+            return {
+                "success": True,
+                "message": "Outfit already saved",
+                "already_saved": True,
+                "saved_at": existing.saved_at.isoformat()
+            }
+
+        # Save outfit
+        user_outfit = UserOutfit(
+            user_id=request.user_id,
+            outfit_id=request.outfit_id
+        )
+        db.add(user_outfit)
+        db.commit()
+
+        logger.info(f"✅ User {request.user_id} saved outfit {request.outfit_id}")
+
+        return {
+            "success": True,
+            "message": "Outfit saved successfully",
+            "already_saved": False,
+            "saved_at": user_outfit.saved_at.isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error saving outfit: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@app.get("/users/{user_id}/outfits")
+async def get_user_outfits(user_id: str):
+    """
+    Get all outfits saved by a user (their wardrobe)
+
+    Use this to show:
+    - User's own profile: their saved fits
+    - Other user's profile: their saved fits
+    """
+    db = SessionLocal()
+    try:
+        # Check if user exists
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Get user's saved outfits
+        user_outfits = db.query(UserOutfit, Outfit).join(
+            Outfit, UserOutfit.outfit_id == Outfit.id
+        ).filter(
+            UserOutfit.user_id == user_id
+        ).order_by(
+            UserOutfit.saved_at.desc()
+        ).all()
+
+        # Build response
+        outfits = []
+        for user_outfit, outfit in user_outfits:
+            # Get products for this outfit
+            products = db.query(OutfitProduct).filter(
+                OutfitProduct.outfit_id == outfit.id
+            ).order_by(OutfitProduct.rank).all()
+
+            # Calculate total price
+            from api.outfit_endpoints import calculate_total_price_with_llm
+            total_price = calculate_total_price_with_llm(products) if products else "$0"
+
+            outfits.append({
+                "outfit_id": outfit.id,
+                "title": f"{outfit.base_title}, {total_price}",
+                "image_url": outfit.image_url,
+                "gender": outfit.gender,
+                "saved_at": user_outfit.saved_at.isoformat(),
+                "products": [
+                    {
+                        "name": p.product_name,
+                        "brand": p.brand,
+                        "retailer": p.retailer,
+                        "price": p.price_display,
+                        "image_url": p.product_image_url,
+                        "product_url": p.product_url,
+                        "rank": int(p.rank)
+                    }
+                    for p in products
+                ]
+            })
+
+        logger.info(f"📦 Retrieved {len(outfits)} saved outfits for user {user_id}")
+
+        return {
+            "user_id": user_id,
+            "username": user.username,
+            "total_outfits": len(outfits),
+            "outfits": outfits
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting user outfits: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()

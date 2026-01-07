@@ -129,12 +129,10 @@ def search_google_shopping_products(query: str, num_results: int = 10):
     try:
         url = "https://serpapi.com/search"
         params = {
-            "engine": "google_shopping",
+            "engine": "google_shopping_light",
             "q": query,
-            "location": "United States",
             "gl": "us",
             "hl": "en",
-            "num": num_results,
             "api_key": api_key
         }
 
@@ -145,12 +143,17 @@ def search_google_shopping_products(query: str, num_results: int = 10):
 
         products = []
         for item in data.get("shopping_results", [])[:num_results]:
+            # Extract price (prefer extracted_price if available)
+            price = item.get("price", "Price not available")
+            if item.get("extracted_price"):
+                price = f"${item.get('extracted_price')}"
+
             products.append({
                 "title": item.get("title", ""),
-                "price": item.get("price", "Price not available"),
+                "price": price,
                 "brand": item.get("source", ""),
                 "image_url": item.get("thumbnail", ""),
-                "product_url": item.get("product_link", ""),  # Correct field from SerpAPI
+                "product_url": item.get("product_link", ""),  # Google Shopping product page
                 "source": item.get("source", "")
             })
 

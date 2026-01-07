@@ -119,85 +119,91 @@ def scrape_and_index_products(target_count: int = 500):
 
             logger.info(f"\n📦 Scraping: {category}")
 
-            # Search Google Shopping
+            # Search Google Shopping - only get 1 product per category
             products = search_google_shopping(
-                query=f"{category} fashion",
-                num_results=50  # Get more to filter
+                query=f"{category}",
+                num_results=1  # Only get 1 product per category
             )
 
-            for product in products:
-                if indexed_count >= target_count:
-                    break
+            # Process only the first product (if available)
+            if not products:
+                logger.warning(f"  ⚠️ No products found for {category}")
+                continue
 
-                try:
-                    # Download product image
-                    image_url = product['image_url']
-                    product_id = f"PROD_{indexed_count:05d}"
-                    image_path = temp_dir / f"{product_id}.jpg"
+            product = products[0]  # Take only the first product
 
-                    logger.info(f"  [{indexed_count+1}/{target_count}] Processing: {product['title'][:50]}...")
+            if indexed_count >= target_count:
+                break
 
-                    if not download_image(image_url, str(image_path)):
-                        continue
+            try:
+                # Download product image
+                image_url = product['image_url']
+                product_id = f"PROD_{indexed_count:05d}"
+                image_path = temp_dir / f"{product_id}.jpg"
 
-                    # Load image
-                    image = cv2.imread(str(image_path))
-                    if image is None:
-                        logger.warning(f"    ⚠️ Could not load image")
-                        continue
+                logger.info(f"  [{indexed_count+1}/{target_count}] Processing: {product['title'][:50]}...")
 
-                    # Extract features (includes color)
-                    features = extractor.extract_all_features(image)
-                    embedding = features['combined']
-
-                    # Extract color from title
-                    color = extract_color_from_text(product['title'])
-
-                    # Extract category (simplified)
-                    category_name = category.split()[-1]  # Last word
-
-                    # Parse price to numeric
-                    price_str = product['price']
-                    try:
-                        # Extract numeric value (e.g., "$49.99" -> 49.99)
-                        price_numeric = float(''.join(c for c in price_str if c.isdigit() or c == '.'))
-                    except:
-                        price_numeric = 0.0
-
-                    # Prepare metadata
-                    metadata = {
-                        'name': product['title'],
-                        'brand': product['brand'] or 'Unknown',
-                        'retailer': product['source'] or 'Unknown',
-                        'price': price_str,
-                        'price_numeric': price_numeric,
-                        'category': category_name,
-                        'color': color,
-                        'image_url': image_url,
-                        'product_url': product['product_url']
-                    }
-
-                    # Add to batch
-                    products_batch.append({
-                        'id': product_id,
-                        'embedding': embedding,
-                        'metadata': metadata
-                    })
-
-                    indexed_count += 1
-
-                    # Batch upsert every 50 products
-                    if len(products_batch) >= 50:
-                        logger.info(f"  💾 Batch upserting {len(products_batch)} products...")
-                        search_engine.upsert_batch(products_batch)
-                        products_batch = []
-
-                    # Small delay to avoid rate limits
-                    time.sleep(0.1)
-
-                except Exception as e:
-                    logger.error(f"    ❌ Error processing product: {e}")
+                if not download_image(image_url, str(image_path)):
                     continue
+
+                # Load image
+                image = cv2.imread(str(image_path))
+                if image is None:
+                    logger.warning(f"    ⚠️ Could not load image")
+                    continue
+
+                # Extract features (includes color)
+                features = extractor.extract_all_features(image)
+                embedding = features['combined']
+
+                # Extract color from title
+                color = extract_color_from_text(product['title'])
+
+                # Extract category (simplified)
+                category_name = category.split()[-1]  # Last word
+
+                # Parse price to numeric
+                price_str = product['price']
+                try:
+                    # Extract numeric value (e.g., "$49.99" -> 49.99)
+                    price_numeric = float(''.join(c for c in price_str if c.isdigit() or c == '.'))
+                except:
+                    price_numeric = 0.0
+
+                # Prepare metadata
+                metadata = {
+                    'name': product['title'],
+                    'brand': product['brand'] or 'Unknown',
+                    'retailer': product['source'] or 'Unknown',
+                    'price': price_str,
+                    'price_numeric': price_numeric,
+                    'category': category_name,
+                    'color': color,
+                    'image_url': image_url,
+                    'product_url': product['product_url']
+                }
+
+                # Add to batch
+                products_batch.append({
+                    'id': product_id,
+                    'embedding': embedding,
+                    'metadata': metadata
+                })
+
+                indexed_count += 1
+
+                # Batch upsert every 50 products
+                if len(products_batch) >= 50:
+                    logger.info(f"  💾 Batch upserting {len(products_batch)} products...")
+                    search_engine.upsert_batch(products_batch)
+                    products_batch = []
+
+                # Small delay to avoid rate limits
+                time.sleep(0.1)
+
+            except Exception as e:
+                logger.error(f"    ❌ Error processing product: {e}")
+                continue
 
         # Upsert remaining products
         if products_batch:

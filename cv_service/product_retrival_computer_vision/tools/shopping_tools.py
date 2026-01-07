@@ -35,7 +35,7 @@ def search_google_shopping(query: str, location: str = "United States", num_resu
         url = "https://serpapi.com/search"
 
         params = {
-            "engine": "google_shopping",
+            "engine": "google_shopping_light",
             "q": query,
             "location": location,
             "gl": "us",
@@ -55,16 +55,23 @@ def search_google_shopping(query: str, location: str = "United States", num_resu
 
         products = []
         for item in shopping_results[:num_results]:
+            # Extract price (prefer extracted_price if available, fallback to price string)
+            price = item.get("price", "Price not available")
+            if item.get("extracted_price"):
+                price = f"${item.get('extracted_price')}"
+
             product = {
                 "title": item.get("title", ""),
-                "price": item.get("price", "Price not available"),
+                "price": price,
                 "brand": item.get("source", ""),  # Store/brand name
                 "image_url": item.get("thumbnail", ""),
-                "product_url": item.get("product_link", ""),  # Correct field from SerpAPI
+                "product_url": item.get("product_link", ""),  # Google Shopping product page
                 "source": item.get("source", ""),
                 "rating": item.get("rating", None),
                 "reviews": item.get("reviews", None),
-                "delivery": item.get("delivery", "")
+                "delivery": item.get("delivery", ""),
+                "tag": item.get("tag", None),  # e.g., "Sale", "Clearance"
+                "old_price": item.get("old_price", None)  # Original price if on sale
             }
             products.append(product)
 

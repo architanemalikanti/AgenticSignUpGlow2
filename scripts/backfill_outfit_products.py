@@ -7,6 +7,12 @@ Usage:
   python scripts/backfill_outfit_products.py --force-all  # Re-process ALL outfits (clears existing)
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import database module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from database.db import SessionLocal
 from database.models import Outfit, OutfitProduct
 from api.outfit_endpoints import analyze_outfit_and_cache_products

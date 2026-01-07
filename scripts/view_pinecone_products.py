@@ -66,7 +66,7 @@ def view_pinecone_products(sample_size=10):
             logger.info(f"  Image URL: {metadata.get('image_url', 'N/A')[:60]}...")
 
             if product_url:
-                logger.info(f"  Product URL: ✅ {product_url[:60]}...")
+                logger.info(f"  Product URL: ✅ {product_url}")  # Show full URL
             else:
                 logger.info(f"  Product URL: ❌ EMPTY")
 

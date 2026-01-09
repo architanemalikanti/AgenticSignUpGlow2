@@ -6533,7 +6533,7 @@ async def get_user_outfits(user_id: str):
 
         # Build response
         outfits = []
-        for user_outfit, outfit in user_outfits:
+        for idx, (user_outfit, outfit) in enumerate(user_outfits):
             # Get products for this outfit
             products = db.query(OutfitProduct).filter(
                 OutfitProduct.outfit_id == outfit.id
@@ -6543,10 +6543,17 @@ async def get_user_outfits(user_id: str):
             from api.outfit_endpoints import calculate_total_price_with_llm
             total_price = calculate_total_price_with_llm(products) if products else "$0"
 
+            # Regenerate caption every time
+            new_caption = generate_outfit_caption(user, outfit, idx)
+
+            # Update stored caption in database
+            user_outfit.caption = new_caption
+            db.commit()
+
             outfits.append({
                 "outfit_id": outfit.id,
                 "title": f"{outfit.base_title}, {total_price}",
-                "caption": user_outfit.caption,  # Personalized AI caption
+                "caption": new_caption,  # Freshly regenerated AI caption
                 "image_url": outfit.image_url,
                 "gender": outfit.gender,
                 "saved_at": user_outfit.saved_at.isoformat(),

@@ -6354,12 +6354,91 @@ class SaveOutfitRequest(BaseModel):
     outfit_id: str
 
 
+def generate_outfit_caption(user: User, outfit: Outfit, outfit_count: int) -> str:
+    """
+    Generate personalized caption for user's outfit using LLM
+
+    Args:
+        user: User object with profile data
+        outfit: Outfit object
+        outfit_count: How many outfits user has saved (for variety)
+
+    Returns:
+        Personalized caption string
+    """
+    from anthropic import Anthropic
+    import os
+
+    # Build user context
+    user_context = f"Name: {user.name or 'user'}"
+    if user.gender:
+        user_context += f", Gender: {user.gender}"
+    if user.occupation:
+        user_context += f", Occupation: {user.occupation}"
+    if user.university:
+        user_context += f", University: {user.university}"
+    if user.college_major:
+        user_context += f", Major: {user.college_major}"
+    if user.city:
+        user_context += f", City: {user.city}"
+    if user.ethnicity:
+        user_context += f", Ethnicity: {user.ethnicity}"
+
+    # Themes to vary captions (cycle through them)
+    themes = [
+        "walking into class/campus",
+        "going out with friends",
+        "running errands around the city",
+        "date night",
+        "job interview or internship",
+        "coffee shop studying",
+        "late night adventure",
+        "brunch on the weekend",
+        "networking event",
+        "casual day at work"
+    ]
+    theme = themes[outfit_count % len(themes)]
+
+    prompt = f"""Generate a short, catchy caption (10-15 words max) for this outfit that a user saved.
+
+User info: {user_context}
+Outfit vibe: {outfit.base_title}
+Theme for this caption: {theme}
+
+Make it personal, confident, and aspirational. Use "the fit she wears" or "the fit he wears" based on gender.
+
+Examples:
+- "the fit she wears when she walks into cornell as a billionaire"
+- "the fit he wears to his first day at google"
+- "the fit she wears running through soho before her 8am"
+
+Return ONLY the caption, no quotes or extra text."""
+
+    try:
+        anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = anthropic_client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=50,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        caption = response.content[0].text.strip()
+        return caption
+
+    except Exception as e:
+        logger.error(f"Error generating caption: {e}")
+        # Fallback caption
+        pronoun = "she" if user.gender == "women" else "he"
+        return f"the fit {pronoun} wears to feel unstoppable"
+
+
 @app.post("/outfits/save")
 async def save_outfit(request: SaveOutfitRequest):
     """
     Save/buy an outfit for a user
 
     When user clicks "buy this fit", iOS sends this request
+    Generates a personalized AI caption for the outfit
     """
     db = SessionLocal()
     try:
@@ -6384,24 +6463,36 @@ async def save_outfit(request: SaveOutfitRequest):
                 "success": True,
                 "message": "Outfit already saved",
                 "already_saved": True,
-                "saved_at": existing.saved_at.isoformat()
+                "saved_at": existing.saved_at.isoformat(),
+                "caption": existing.caption
             }
 
-        # Save outfit
+        # Count user's existing outfits (for caption variety)
+        outfit_count = db.query(UserOutfit).filter(
+            UserOutfit.user_id == request.user_id
+        ).count()
+
+        # Generate personalized caption
+        caption = generate_outfit_caption(user, outfit, outfit_count)
+
+        # Save outfit with caption
         user_outfit = UserOutfit(
             user_id=request.user_id,
-            outfit_id=request.outfit_id
+            outfit_id=request.outfit_id,
+            caption=caption
         )
         db.add(user_outfit)
         db.commit()
 
         logger.info(f"✅ User {request.user_id} saved outfit {request.outfit_id}")
+        logger.info(f"   Caption: {caption}")
 
         return {
             "success": True,
             "message": "Outfit saved successfully",
             "already_saved": False,
-            "saved_at": user_outfit.saved_at.isoformat()
+            "saved_at": user_outfit.saved_at.isoformat(),
+            "caption": caption
         }
 
     except HTTPException:
@@ -6454,6 +6545,7 @@ async def get_user_outfits(user_id: str):
             outfits.append({
                 "outfit_id": outfit.id,
                 "title": f"{outfit.base_title}, {total_price}",
+                "caption": user_outfit.caption,  # Personalized AI caption
                 "image_url": outfit.image_url,
                 "gender": outfit.gender,
                 "saved_at": user_outfit.saved_at.isoformat(),

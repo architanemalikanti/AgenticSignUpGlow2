@@ -311,6 +311,9 @@ class UserOutfit(Base):
     user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
     outfit_id = Column(String(36), ForeignKey('outfits.id'), nullable=False)
 
+    # AI-generated caption personalized to user
+    caption = Column(String(500), nullable=True)  # "the fit she wears when she walks into cornell as a billionaire"
+
     # Timestamp
     saved_at = Column(DateTime, default=datetime.utcnow)
 

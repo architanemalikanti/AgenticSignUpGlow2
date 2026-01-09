@@ -6399,12 +6399,21 @@ def generate_outfit_caption(user: User, outfit: Outfit, outfit_count: int) -> st
     ]
     theme = themes[outfit_count % len(themes)]
 
-    prompt = f"""Generate a caption (10-15 words max) for this outfit that a user saved: name the moment. 
-    Think about a vogue editorialist you are coming up with a caption to name the moment based on the outfit and the context you know about this person. 
+    prompt = f"""Generate a caption (7-10 words max) for this outfit that a user saved: name the moment. 
+    Think like a vogue editorialist. You are coming up with a short caption to name the moment based on the outfit and the context you know about this person. 
 
-    here are some pattens:
-- "the fit she wears when she walks into cornell as a billionaire": when the user has some success related to their career
-- "the fit she wears running through soho before her 8am": user's city
+timestamped snapshot:
+“her fit at 7:18am, philz in hand, code still compiling.”
+
+third-person observation (editorial)
+“this is what a successful woman female startup founder wears.” (if the person is a female, and is a startup founder)
+
+"the fit she pulls off when she's about to close a big deal."
+
+notice how it is
+1) clear + literal (not vague / poetry)
+2) ✅ names the moment
+3) ✅ ties to who you are (female, startup founder, big deal energy)
 
 
 User info: {user_context}

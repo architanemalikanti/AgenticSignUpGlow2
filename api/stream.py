@@ -6410,7 +6410,7 @@ User info: {user_context}
 Outfit vibe: {outfit.base_title}
 Theme for this caption: {theme}
 
-keep the text lowercase, no full sentences.
+keep the text lowercase.
 
 Return ONLY the caption, no quotes or extra text."""
 

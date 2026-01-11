@@ -317,3 +317,35 @@ class UserOutfit(Base):
     # Timestamp
     saved_at = Column(DateTime, default=datetime.utcnow)
 
+
+class Brand(Base):
+    """Fashion brands that can be recommended to users"""
+    __tablename__ = 'brands'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Brand details
+    name = Column(String(200), nullable=False, unique=True)  # e.g., "PRADA", "dolce gabbana"
+    description = Column(String(500), nullable=True)  # Brand vibe/personality
+    price_range = Column(String(50), nullable=True)  # "affordable", "mid-range", "luxury"
+    style_tags = Column(ARRAY(String), default=list)  # ["minimalist", "streetwear", "luxury"]
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UserBrand(Base):
+    """Junction table: many-to-many relationship between users and brands"""
+    __tablename__ = 'user_brands'
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Foreign keys
+    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
+    brand_id = Column(String(36), ForeignKey('brands.id'), nullable=False)
+
+    # Timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+

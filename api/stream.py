@@ -13,7 +13,7 @@ from typing import List, Optional
 import cv2
 import traceback
 from database.db import SessionLocal
-from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment, Outfit, OutfitProduct, UserProgress, OutfitTryOnSignup, UserOutfit
+from database.models import User, Design, Follow, FollowRequest, Notification, Like, Post, Report, Block, Comment, Outfit, OutfitProduct, UserProgress, OutfitTryOnSignup, UserOutfit, Brand, UserBrand
 from services.agent import Agent
 from services.fashion_helpers import (
     DetectedItem, SearchResult, DetectionResponse, SearchResponse, AnalysisResponse,
@@ -6410,6 +6410,10 @@ third-person observation (editorial)
 
 "the fit she pulls off when she's about to close a big deal."
 
+"her sf marina girls night fit" 
+
+make sure to not always output the same starter of the caption. 
+
 notice how it is
 1) clear + literal (not vague / poetry)
 2) ✅ names the moment
@@ -6593,6 +6597,146 @@ async def get_user_outfits(user_id: str):
         raise
     except Exception as e:
         logger.error(f"❌ Error getting user outfits: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@app.post("/users/{user_id}/generate-brands")
+async def generate_user_brands(user_id: str):
+    """
+    Generate 3-4 brands that match the user's vibe based on their profile
+    Uses Claude to analyze personality and recommend brands
+    """
+    db = SessionLocal()
+    try:
+        # Get user
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Build user context
+        user_context = f"Name: {user.name or 'user'}"
+        if user.gender:
+            user_context += f", Gender: {user.gender}"
+        if user.occupation:
+            user_context += f", Occupation: {user.occupation}"
+        if user.university:
+            user_context += f", University: {user.university}"
+        if user.college_major:
+            user_context += f", Major: {user.college_major}"
+        if user.city:
+            user_context += f", City: {user.city}"
+        if user.ethnicity:
+            user_context += f", Ethnicity: {user.ethnicity}"
+        if user.sexuality:
+            user_context += f", Sexuality: {user.sexuality}"
+        if user.bio:
+            user_context += f", Bio: {user.bio}"
+
+        # Prompt Claude to recommend brands
+        from anthropic import Anthropic
+        import os
+
+        prompt = f"""Based on this user's profile, recommend 3-4 fashion brands that match their vibe and personality.
+
+User profile: {user_context}
+
+Consider their lifestyle, location, occupation, and personal style. Mix different price ranges if appropriate.
+
+Return ONLY a comma-separated list of brand names, nothing else. Use proper capitalization.
+
+Examples:
+- PRADA, dolce gabbana, miu miu
+- zara, reformation, aritzia, h&m
+- rick owens, acne studios, bottega veneta
+"""
+
+        try:
+            anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            response = anthropic_client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=100,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            brands_text = response.content[0].text.strip()
+            brands_list = [b.strip() for b in brands_text.split(',')]
+
+            # Limit to 4 brands max
+            brands_list = brands_list[:4]
+
+            # Clear existing user brands
+            db.query(UserBrand).filter(UserBrand.user_id == user_id).delete()
+            db.commit()
+
+            # Get or create each brand and link to user
+            brand_objects = []
+            for brand_name in brands_list:
+                # Check if brand exists
+                brand = db.query(Brand).filter(Brand.name == brand_name).first()
+
+                # If not, create it
+                if not brand:
+                    brand = Brand(name=brand_name)
+                    db.add(brand)
+                    db.flush()  # Get the brand ID
+
+                # Create user-brand relationship
+                user_brand = UserBrand(user_id=user_id, brand_id=brand.id)
+                db.add(user_brand)
+                brand_objects.append(brand_name)
+
+            db.commit()
+
+            logger.info(f"✨ Generated brands for user {user_id}: {brand_objects}")
+
+            return {
+                "user_id": user_id,
+                "brands": brand_objects
+            }
+
+        except Exception as e:
+            logger.error(f"Error generating brands: {e}")
+            raise HTTPException(status_code=500, detail=f"Error generating brands: {str(e)}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error generating user brands: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@app.get("/users/{user_id}/brands")
+async def get_user_brands(user_id: str):
+    """Get the user's recommended brands"""
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Query brands through the junction table
+        user_brand_relationships = db.query(UserBrand, Brand).join(
+            Brand, UserBrand.brand_id == Brand.id
+        ).filter(
+            UserBrand.user_id == user_id
+        ).all()
+
+        # Extract brand names
+        brands_list = [brand.name for _, brand in user_brand_relationships]
+
+        return {
+            "user_id": user_id,
+            "brands": brands_list
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting user brands: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()

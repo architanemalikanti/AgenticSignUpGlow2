@@ -6604,18 +6604,24 @@ async def get_user_outfits(user_id: str):
         db.close()
 
 
-@app.post("/users/{user_id}/generate-brands")
-async def generate_user_brands(user_id: str):
+@app.post("/users/{user_id}/regenerate-profile")
+async def regenerate_user_profile(user_id: str):
     """
-    Generate 3-4 brands that match the user's vibe based on their profile
-    Uses Claude to analyze personality and recommend brands
+    Regenerate both outfit captions AND brands for a user
+    Uses generate_outfit_caption() and Claude to pick brands
     """
     db = SessionLocal()
     try:
-        # Get user
+        # Check if user exists
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
+
+        # ===== REGENERATE BRANDS =====
+        # Get all available brands from database
+        all_brands = db.query(Brand).all()
+        if not all_brands:
+            raise HTTPException(status_code=400, detail="No brands available in database. Run seed_brands.py first.")
 
         # Build user context
         user_context = f"Name: {user.name or 'user'}"
@@ -6635,11 +6641,6 @@ async def generate_user_brands(user_id: str):
             user_context += f", Sexuality: {user.sexuality}"
         if user.bio:
             user_context += f", Bio: {user.bio}"
-
-        # Get all available brands from database
-        all_brands = db.query(Brand).all()
-        if not all_brands:
-            raise HTTPException(status_code=400, detail="No brands available in database. Run seed_brands.py first.")
 
         # Format brands for prompt
         brands_options = []
@@ -6670,110 +6671,36 @@ Examples:
 - Rick Owens, Acne Studios, Bottega Veneta
 """
 
-        try:
-            anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-            response = anthropic_client.messages.create(
-                model="claude-3-haiku-20240307",
-                max_tokens=100,
-                messages=[{"role": "user", "content": prompt}]
-            )
+        anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = anthropic_client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=100,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-            brands_text = response.content[0].text.strip()
-            brands_list = [b.strip() for b in brands_text.split(',')]
+        brands_text = response.content[0].text.strip()
+        brands_list = [b.strip() for b in brands_text.split(',')][:4]
 
-            # Limit to 4 brands max
-            brands_list = brands_list[:4]
+        # Clear existing user brands
+        db.query(UserBrand).filter(UserBrand.user_id == user_id).delete()
+        db.commit()
 
-            # Clear existing user brands
-            db.query(UserBrand).filter(UserBrand.user_id == user_id).delete()
-            db.commit()
+        # Get or create each brand and link to user
+        brand_objects = []
+        for brand_name in brands_list:
+            brand = db.query(Brand).filter(Brand.name == brand_name).first()
+            if not brand:
+                brand = Brand(name=brand_name)
+                db.add(brand)
+                db.flush()
 
-            # Get or create each brand and link to user
-            brand_objects = []
-            for brand_name in brands_list:
-                # Check if brand exists
-                brand = db.query(Brand).filter(Brand.name == brand_name).first()
+            user_brand = UserBrand(user_id=user_id, brand_id=brand.id)
+            db.add(user_brand)
+            brand_objects.append(brand_name)
 
-                # If not, create it
-                if not brand:
-                    brand = Brand(name=brand_name)
-                    db.add(brand)
-                    db.flush()  # Get the brand ID
+        db.commit()
 
-                # Create user-brand relationship
-                user_brand = UserBrand(user_id=user_id, brand_id=brand.id)
-                db.add(user_brand)
-                brand_objects.append(brand_name)
-
-            db.commit()
-
-            logger.info(f"✨ Generated brands for user {user_id}: {brand_objects}")
-
-            return {
-                "user_id": user_id,
-                "brands": brand_objects
-            }
-
-        except Exception as e:
-            logger.error(f"Error generating brands: {e}")
-            raise HTTPException(status_code=500, detail=f"Error generating brands: {str(e)}")
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error generating user brands: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        db.close()
-
-
-@app.get("/users/{user_id}/brands")
-async def get_user_brands(user_id: str):
-    """Get the user's recommended brands"""
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        # Query brands through the junction table
-        user_brand_relationships = db.query(UserBrand, Brand).join(
-            Brand, UserBrand.brand_id == Brand.id
-        ).filter(
-            UserBrand.user_id == user_id
-        ).all()
-
-        # Extract brand names
-        brands_list = [brand.name for _, brand in user_brand_relationships]
-
-        return {
-            "user_id": user_id,
-            "brands": brands_list
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error getting user brands: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        db.close()
-
-
-@app.post("/users/{user_id}/regenerate-captions")
-async def regenerate_user_outfit_captions(user_id: str):
-    """
-    Regenerate all outfit captions for a user's saved outfits
-    Uses generate_outfit_caption() to create fresh captions
-    """
-    db = SessionLocal()
-    try:
-        # Check if user exists
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        # Get user's saved outfits
+        # ===== REGENERATE CAPTIONS =====
         user_outfits = db.query(UserOutfit, Outfit).join(
             Outfit, UserOutfit.outfit_id == Outfit.id
         ).filter(
@@ -6782,20 +6709,9 @@ async def regenerate_user_outfit_captions(user_id: str):
             UserOutfit.saved_at.desc()
         ).all()
 
-        if not user_outfits:
-            return {
-                "user_id": user_id,
-                "message": "No outfits to regenerate captions for",
-                "regenerated_count": 0
-            }
-
-        # Regenerate captions for all outfits
         regenerated_captions = []
         for idx, (user_outfit, outfit) in enumerate(user_outfits):
-            # Generate new caption
             new_caption = generate_outfit_caption(user, outfit, idx)
-
-            # Update in database
             user_outfit.caption = new_caption
             regenerated_captions.append({
                 "outfit_id": outfit.id,
@@ -6805,19 +6721,20 @@ async def regenerate_user_outfit_captions(user_id: str):
 
         db.commit()
 
-        logger.info(f"♻️  Regenerated {len(regenerated_captions)} captions for user {user_id}")
+        logger.info(f"♻️  Regenerated brands and {len(regenerated_captions)} captions for user {user_id}")
 
         return {
             "user_id": user_id,
-            "message": "Successfully regenerated all outfit captions",
-            "regenerated_count": len(regenerated_captions),
+            "message": "Successfully regenerated brands and outfit captions",
+            "brands": brand_objects,
+            "regenerated_captions_count": len(regenerated_captions),
             "captions": regenerated_captions
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error regenerating captions: {e}")
+        logger.error(f"❌ Error regenerating profile: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()

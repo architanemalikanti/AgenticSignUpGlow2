@@ -6760,6 +6760,69 @@ async def get_user_brands(user_id: str):
         db.close()
 
 
+@app.post("/users/{user_id}/regenerate-captions")
+async def regenerate_user_outfit_captions(user_id: str):
+    """
+    Regenerate all outfit captions for a user's saved outfits
+    Uses generate_outfit_caption() to create fresh captions
+    """
+    db = SessionLocal()
+    try:
+        # Check if user exists
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Get user's saved outfits
+        user_outfits = db.query(UserOutfit, Outfit).join(
+            Outfit, UserOutfit.outfit_id == Outfit.id
+        ).filter(
+            UserOutfit.user_id == user_id
+        ).order_by(
+            UserOutfit.saved_at.desc()
+        ).all()
+
+        if not user_outfits:
+            return {
+                "user_id": user_id,
+                "message": "No outfits to regenerate captions for",
+                "regenerated_count": 0
+            }
+
+        # Regenerate captions for all outfits
+        regenerated_captions = []
+        for idx, (user_outfit, outfit) in enumerate(user_outfits):
+            # Generate new caption
+            new_caption = generate_outfit_caption(user, outfit, idx)
+
+            # Update in database
+            user_outfit.caption = new_caption
+            regenerated_captions.append({
+                "outfit_id": outfit.id,
+                "title": outfit.base_title,
+                "new_caption": new_caption
+            })
+
+        db.commit()
+
+        logger.info(f"♻️  Regenerated {len(regenerated_captions)} captions for user {user_id}")
+
+        return {
+            "user_id": user_id,
+            "message": "Successfully regenerated all outfit captions",
+            "regenerated_count": len(regenerated_captions),
+            "captions": regenerated_captions
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error regenerating captions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("stream:app", host="0.0.0.0", port=8000, reload=True)

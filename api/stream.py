@@ -6634,6 +6634,19 @@ async def generate_user_brands(user_id: str):
         if user.bio:
             user_context += f", Bio: {user.bio}"
 
+        # Get all available brands from database
+        all_brands = db.query(Brand).all()
+        if not all_brands:
+            raise HTTPException(status_code=400, detail="No brands available in database. Run seed_brands.py first.")
+
+        # Format brands for prompt
+        brands_options = []
+        for brand in all_brands:
+            tags = ", ".join(brand.style_tags) if brand.style_tags else "N/A"
+            brands_options.append(f"{brand.name} ({brand.price_range}, {tags})")
+
+        brands_list_text = "\n".join(brands_options)
+
         # Prompt Claude to recommend brands
         from anthropic import Anthropic
         import os
@@ -6642,14 +6655,17 @@ async def generate_user_brands(user_id: str):
 
 User profile: {user_context}
 
+Available brands to choose from:
+{brands_list_text}
+
 Consider their lifestyle, location, occupation, and personal style. Mix different price ranges if appropriate.
 
-Return ONLY a comma-separated list of brand names, nothing else. Use proper capitalization.
+Return ONLY a comma-separated list of brand names (exact names from the list above), nothing else.
 
 Examples:
-- PRADA, dolce gabbana, miu miu
-- zara, reformation, aritzia, h&m
-- rick owens, acne studios, bottega veneta
+- PRADA, Dolce & Gabbana, Miu Miu
+- Zara, Reformation, Aritzia, H&M
+- Rick Owens, Acne Studios, Bottega Veneta
 """
 
         try:

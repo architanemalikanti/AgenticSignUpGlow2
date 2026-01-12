@@ -178,14 +178,8 @@ def bulk_import_outfits(bucket, folder_path: str = "outfits/"):
 
             logger.info(f"✅ Imported outfit: {base_title}")
 
-            # Analyze outfit and cache products immediately
-            logger.info(f"🔍 Analyzing outfit to find products...")
-            try:
-                from api.outfit_endpoints import analyze_outfit_and_cache_products
-                analyze_outfit_and_cache_products(outfit_id, image_url)
-            except Exception as e:
-                logger.error(f"⚠️ Could not analyze outfit: {e}")
-                logger.info("   Products will be analyzed on first view")
+            # Note: Product analysis will happen separately via backfill_outfit_products.py
+            logger.info(f"💡 Run backfill_outfit_products.py to find products for this outfit")
 
             imported_count += 1
 

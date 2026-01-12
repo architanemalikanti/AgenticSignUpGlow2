@@ -8,11 +8,16 @@ Bulk import outfits from Firebase Storage
 Usage: python scripts/bulk_import_outfits_from_firebase.py
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import os
 import uuid
 import base64
 import requests
-from pathlib import Path
 from anthropic import Anthropic
 from database.db import SessionLocal
 from database.models import Outfit

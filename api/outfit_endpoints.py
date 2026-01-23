@@ -13,8 +13,6 @@ from anthropic import Anthropic
 import os
 import requests
 import base64
-import cv2
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

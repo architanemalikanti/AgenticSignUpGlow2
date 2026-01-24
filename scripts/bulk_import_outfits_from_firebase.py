@@ -54,10 +54,11 @@ def init_firebase():
         return None
 
 
-def generate_outfit_title_with_vlm(image_url: str) -> str:
+def generate_outfit_title_with_vlm(image_url: str, prompt: str) -> str:
     """
     Args:
         image_url: Public URL of the outfit image
+        prompt: The specific prompt to use for title generation
 
     Returns:
         Generated title string (e.g., "1999 celeb caught by paparazzi")
@@ -75,22 +76,6 @@ def generate_outfit_title_with_vlm(image_url: str) -> str:
             media_type = "image/webp"
         else:
             media_type = "image/jpeg"
-
-        # Ask Claude to generate a catchy title
-        prompt = """think like an editorialist at Vogue: name the moment, not the outfit. 
-Use Claude VLM to analyze outfit image and name the moment. 
-
-here are pattens you can use:
-Time → “south indian princess at golden hour”, “pop star seen slipping out at midnight” 
-
-Social context, imagine what's happening in the scene → “1999 it girl caught by the paparazzi”
-
-"the nyc darling", "rich girls in paris at 7am", "the it girl, 11pm" are other examples setting the scene. 
-
-
-keep the text lowercase, no full sentences. 
-
-Return ONLY the title, nothing else."""
 
         message = anthropic_client.messages.create(
             model="claude-sonnet-4-20250514",
@@ -135,14 +120,52 @@ def bulk_import_outfits(bucket, folder_path: str = "outfits/"):
     """
     db = SessionLocal()
 
+    # Define multiple prompts to rotate through
+    prompts = [
+        # Prompt 1: Time-based moments
+        """think like an editorialist at Vogue: name the moment, not the outfit.
+Use Claude VLM to analyze outfit image and name the moment.
+
+Focus on TIME and when this moment is happening:
+Examples: "south indian princess at golden hour", "pop star seen slipping out at midnight", "the it girl, 11pm", "rich girls in paris at 7am"
+
+keep the text lowercase, no full sentences.
+
+Return ONLY the title, nothing else.""",
+
+        # Prompt 2: Adjective + Noun (moody vibe)
+        """think like an editorialist at Vogue: name the mood, not the outfit.
+Use Claude VLM to analyze outfit image and create a poetic two-word title.
+
+Format: Adjective + Noun (moody vibe)
+Examples: "velvet reverie", "urban porcelain", "midnight minimalist", "soft armor", "borrowed boyfriend"
+
+Use for: simple looks where one mood dominates (all-black, slouchy denim, oversized blazer).
+
+keep the text lowercase, two words only.
+
+Return ONLY the title, nothing else.""",
+
+        # Prompt 3: Location & atmosphere
+        """think like an editorialist at Vogue: name the moment, not the outfit.
+Use Claude VLM to analyze outfit image and name the moment.
+
+Focus on PLACE and VIBE - where is this happening:
+Examples: "runway at milan fashion week", "backstage at the met gala", "coffee run in tribeca", "airport fit to LAX"
+
+keep the text lowercase, no full sentences.
+
+Return ONLY the title, nothing else.""",
+    ]
+
     try:
         # List all images in the folder
-        blobs = bucket.list_blobs(prefix=folder_path)
+        blobs = list(bucket.list_blobs(prefix=folder_path))
 
         imported_count = 0
         skipped_count = 0
 
-        for blob in blobs:
+        for idx, blob in enumerate(blobs):
             # Skip non-image files
             if not any(blob.name.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp']):
                 logger.info(f"⏭️ Skipping non-image file: {blob.name}")
@@ -161,8 +184,12 @@ def bulk_import_outfits(bucket, folder_path: str = "outfits/"):
                 skipped_count += 1
                 continue
 
-            # Generate title using Claude VLM
-            base_title = generate_outfit_title_with_vlm(image_url)
+            # Rotate through prompts using modulo
+            prompt_to_use = prompts[idx % len(prompts)]
+            logger.info(f"🎨 Using prompt style {(idx % len(prompts)) + 1}/{len(prompts)}")
+
+            # Generate title using Claude VLM with rotating prompt
+            base_title = generate_outfit_title_with_vlm(image_url, prompt_to_use)
 
             # Create outfit in database
             outfit_id = str(uuid.uuid4())

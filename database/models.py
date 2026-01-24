@@ -36,36 +36,6 @@ class User(Base):
     profile_image = Column(String(500), nullable=True)  # Cartoon avatar URL from S3
     is_private = Column(Boolean, default=False, nullable=False)  # Profile privacy setting (default: public)
 
-    # One-to-many relationship with Design table
-    designs = relationship("Design", back_populates="user")
-
-    # One-to-many relationship with Post table
-    posts = relationship("Post", back_populates="user")
-
-
-class Design(Base):
-    __tablename__ = 'designs'
-
-    # Primary key
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-
-    # Foreign key to users table (one-to-many: one user can have many designs)
-    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
-
-    # Design fields
-    two_captions = Column(ARRAY(String), nullable=True)  # Array of 2 strings
-    intro_caption = Column(String, nullable=True)  # Single string
-    eight_captions = Column(ARRAY(String), nullable=True)  # Array of 8 strings
-    design_name = Column(String, nullable=True)  # Design name
-    song = Column(String, nullable=True)  # Song name/URL
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationship back to User
-    user = relationship("User", back_populates="designs")
-
 
 class Follow(Base):
     __tablename__ = 'follows'
@@ -117,63 +87,6 @@ class Notification(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class Post(Base):
-    __tablename__ = 'posts'
-
-    # Primary key
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-
-    # Foreign key to users table (one-to-many: one user can have many posts)
-    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)
-
-    # Post content fields
-    title = Column(String, nullable=True)  # Post title
-    location = Column(String, nullable=True)  # Location
-    caption = Column(String, nullable=True)  # Caption text
-    ai_sentence = Column(String, nullable=True)  # AI-generated announcement sentence ("babe wake up, archita just posted")
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    user = relationship("User", back_populates="posts")
-    media = relationship("PostMedia", back_populates="post", cascade="all, delete-orphan")
-
-
-class PostMedia(Base):
-    __tablename__ = 'post_media'
-
-    # Primary key
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-
-    # Foreign key to posts table (one-to-many: one post can have many media items)
-    post_id = Column(String(36), ForeignKey('posts.id'), nullable=False)
-
-    # Media URL (base64 encoded image)
-    media_url = Column(String, nullable=False)
-
-    # Timestamp
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationship back to Post
-    post = relationship("Post", back_populates="media")
-
-
-class Like(Base):
-    __tablename__ = 'likes'
-
-    # Primary key
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-
-    # Foreign keys
-    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who liked
-    post_id = Column(String(36), ForeignKey('posts.id'), nullable=False)  # Post that was liked
-
-    # Timestamp
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
 class Report(Base):
     __tablename__ = 'reports'
 
@@ -181,11 +94,12 @@ class Report(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
     # Foreign keys
-    post_id = Column(String(36), ForeignKey('posts.id'), nullable=False)  # Post being reported
-    reported_user_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who created the post
+    reported_user_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User being reported
     reporter_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who reported
 
     # Report details
+    content_type = Column(String, nullable=True)  # Type of content being reported (e.g., "outfit", "user", "comment")
+    content_id = Column(String(36), nullable=True)  # ID of the content being reported
     reason = Column(String, nullable=False)  # Why the content is inappropriate
 
     # Timestamp
@@ -201,23 +115,6 @@ class Block(Base):
     # Foreign keys
     blocker_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who is blocking
     blocked_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User being blocked
-
-    # Timestamp
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class Comment(Base):
-    __tablename__ = 'comments'
-
-    # Primary key
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-
-    # Foreign keys
-    post_id = Column(String(36), ForeignKey('posts.id'), nullable=False)  # Post being commented on
-    user_id = Column(String(36), ForeignKey('users.id'), nullable=False)  # User who made the comment
-
-    # Comment content
-    content = Column(String, nullable=False)  # The comment text
 
     # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -238,8 +238,8 @@ class SimpleSignupRequest(BaseModel):
 @app.post("/signup/simple")
 async def simple_signup(request: SimpleSignupRequest):
     """
-    Simple signup endpoint - returns redis_id immediately, creates user in background.
-    Generates an AI bio based on user's Instagram bio input.
+    Minimal signup endpoint - creates user and returns user_id + tokens immediately.
+    No Redis, no AI generation, no polling - just create user and return.
 
     Request body:
     {
@@ -247,7 +247,7 @@ async def simple_signup(request: SimpleSignupRequest):
         "email": "archita@example.com",
         "password": "password123",
         "name": "Archita",
-        "instagram_bio": "cs @ berkeley | building cool stuff | coffee enthusiast",
+        "instagram_bio": "cs @ berkeley",  // not used, kept for compatibility
         "gender": "female",
         "ethnicity": "south asian",
         "occupation": "software engineer"  // optional
@@ -256,17 +256,19 @@ async def simple_signup(request: SimpleSignupRequest):
     Returns:
     {
         "status": "success",
-        "redis_id": "abc-123"
+        "user_id": "...",
+        "access_token": "...",
+        "refresh_token": "..."
     }
-
-    iOS should poll: GET /poll/{redis_id} to get user data when ready
     """
     import bcrypt
     from database.db import SessionLocal
     from database.models import User
     import uuid
-    import asyncio
+    from datetime import datetime
+    from utils.jwt_utils import create_access_token, create_refresh_token
 
+    db = None
     try:
         db = SessionLocal()
 
@@ -279,207 +281,52 @@ async def simple_signup(request: SimpleSignupRequest):
                 "error": "Username already taken"
             }
 
+        # Hash password
+        hashed_password = bcrypt.hashpw(
+            request.password.encode('utf-8'),
+            bcrypt.gensalt()
+        ).decode('utf-8')
+
+        # Create user (minimal - no AI generation, no profile image)
+        user_id = str(uuid.uuid4())
+        new_user = User(
+            id=user_id,
+            username=request.username,
+            email=request.email,
+            name=request.name,
+            password=hashed_password,
+            gender=request.gender,
+            ethnicity=request.ethnicity,
+            occupation=request.occupation,
+            created_at=datetime.utcnow()
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        logger.info(f"✅ Created user {user_id} (@{request.username})")
+
+        # Generate JWT tokens
+        access_token = create_access_token(user_id)
+        refresh_token = create_refresh_token(user_id)
+
         db.close()
 
-        # Generate redis_id
-        redis_id = str(uuid.uuid4())
-
-        # Set initial status in Redis
-        r.set(f"signup:{redis_id}", json.dumps({
-            "status": "processing",
-            "message": "Creating your account..."
-        }), ex=600)  # 10 min expiry
-
-        # Start background task to create user
-        async def create_user_background():
-            try:
-                from datetime import datetime
-
-                db = SessionLocal()
-
-                # Hash password
-                hashed_password = bcrypt.hashpw(
-                    request.password.encode('utf-8'),
-                    bcrypt.gensalt()
-                ).decode('utf-8')
-
-                # Generate AI bio from Instagram bio
-                logger.info(f"🤖 Generating AI bio from: {request.instagram_bio[:50]}...")
-                generated_bio = None
-                try:
-                    from anthropic import Anthropic
-                    client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
-                    prompt = f"""Make this bio SHORT AF with sassy personality: "{request.instagram_bio}"
-
-RULES:
-- SUPER SHORT (3-5 words max)
-- all lowercase
-- third person
-- include city/school if mentioned
-- gen z slang + sassy personalitys
-
-Examples:
-- her location is sf but she’s an east coast girly from cornell
-- he goes to cornell law. what, like it's hard?
-- she's a baddie and she knows she's a ten. harvard class of 26 💅
-
-be confident, slightly sassy, and human in all the bio generations. 
-
-Return SHORT bio, lowercase, and EMPHASIS ON SPECIFICITY related to the user."""
-
-                    response = client.messages.create(
-                        model="claude-sonnet-4-20250514",
-                        max_tokens=150,
-                        messages=[{"role": "user", "content": prompt}]
-                    )
-
-                    generated_bio = response.content[0].text.strip()
-                    logger.info(f"✨ Generated bio: {generated_bio}")
-
-                except Exception as bio_error:
-                    logger.error(f"❌ Error generating bio: {bio_error}")
-                    generated_bio = request.instagram_bio  # Fallback to original
-
-                # Generate zero followers sentence for UI
-                logger.info(f"🤖 Generating zero followers sentence...")
-                followers_sentence = None
-                try:
-                    followers_prompt = f"""Generate a SHORT, funny, self-aware sentence about having 0 followers and following 0 people.
-
-Context:
-- Gender: {request.gender}
-
-RULES:
-- lowercase
-- gen z humor
-- self-aware/sassy
-- one sentence max and SHORT. 
-- acknowledge they're brand new (0 followers, 0 following). express as numbers "0" instead of string "zero".
-
-Examples:
-"0 followers and 0 following. please clap!!"
-"0 followers + 0 following. she just got here hehe"
-"0 followers, 0 following. this feels illegal with no followers"
-"0 followers. 0 following. pls imagine a crowd here"
-
-
-Return ONE sentence, lowercase."""
-
-                    followers_response = client.messages.create(
-                        model="claude-sonnet-4-20250514",
-                        max_tokens=50,
-                        messages=[{"role": "user", "content": followers_prompt}]
-                    )
-
-                    followers_sentence = followers_response.content[0].text.strip()
-                    logger.info(f"✨ Generated followers sentence: {followers_sentence}")
-
-                except Exception as followers_error:
-                    logger.error(f"❌ Error generating followers sentence: {followers_error}")
-                    followers_sentence = "starting from zero but the vibe is immaculate"  # Fallback
-
-                # Get cartoon avatar for females
-                profile_image_url = None
-                if request.gender.lower() == 'female':
-                    from utils.avatar_helper import get_cartoon_avatar
-                    profile_image_url = get_cartoon_avatar(request.gender, request.ethnicity)
-                    logger.info(f"🎨 Selected avatar: {profile_image_url}")
-
-                # Create user
-                user_id = str(uuid.uuid4())
-                new_user = User(
-                    id=user_id,
-                    username=request.username,
-                    email=request.email,
-                    name=request.name,
-                    password=hashed_password,
-                    gender=request.gender,
-                    ethnicity=request.ethnicity,
-                    occupation=request.occupation,  # Store occupation
-                    bio=generated_bio,  # Store AI-generated bio
-                    profile_image=profile_image_url,
-                    created_at=datetime.utcnow()
-                )
-
-                db.add(new_user)
-                db.commit()
-                db.refresh(new_user)
-
-                logger.info(f"✅ Created user {user_id} (@{request.username})")
-
-                # Create profile embedding
-                from services.profile_embeddings import create_user_profile_embedding
-                embedding_result = create_user_profile_embedding(new_user)
-                logger.info(f"📊 Embedding creation: {embedding_result}")
-
-                # Generate JWT tokens
-                from utils.jwt_utils import create_access_token, create_refresh_token
-                access_token = create_access_token(user_id)
-                refresh_token = create_refresh_token(user_id)
-
-                # Generate first feed group (only 1 group)
-                logger.info(f"🔄 Generating first feed for user {user_id}")
-                from services.profile_embeddings import generate_ai_groups, find_users_from_ai_description
-
-                first_group = None
-                feed_ready = False
-
-                try:
-                    groups = generate_ai_groups(user_id, count=1)  # Generate only 1 group
-                    if groups and len(groups) > 0:
-                        first_description = groups[0]
-                        matched_users = find_users_from_ai_description(first_description, top_k=5)
-
-                        first_group = {
-                            "description": first_description,
-                            "users": matched_users
-                        }
-                        feed_ready = True
-                        logger.info(f"✅ First feed group generated")
-                except Exception as feed_error:
-                    logger.error(f"❌ Error generating feed: {feed_error}")
-
-                db.close()
-
-                # Update Redis with completed data
-                r.set(f"signup:{redis_id}", json.dumps({
-                    "status": "ready",
-                    "user_id": user_id,
-                    "name": new_user.name,
-                    "username": new_user.username,
-                    "bio": generated_bio,  # AI-generated bio
-                    "followers_sentence": followers_sentence,  # Zero followers UI sentence (not in DB)
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "profile_image": profile_image_url,
-                    "feed_ready": feed_ready,
-                    "first_group": first_group
-                }), ex=600)
-
-                logger.info(f"✅ Signup complete for {user_id}, stored in Redis")
-
-            except Exception as e:
-                logger.error(f"❌ Error in background signup: {e}")
-                r.set(f"signup:{redis_id}", json.dumps({
-                    "status": "error",
-                    "error": str(e)
-                }), ex=600)
-                if 'db' in locals():
-                    db.close()
-
-        # Start background task
-        asyncio.create_task(create_user_background())
-
-        logger.info(f"✅ Signup initiated with redis_id: {redis_id}")
+        # Return minimal response - just user_id and tokens
+        logger.info(f"✅ Signup complete for {user_id} (@{request.username})")
 
         return {
             "status": "success",
-            "redis_id": redis_id
+            "user_id": user_id,
+            "access_token": access_token,
+            "refresh_token": refresh_token
         }
 
     except Exception as e:
-        logger.error(f"❌ Error initiating signup: {e}")
+        logger.error(f"❌ Error during signup: {e}")
+        if db is not None:
+            db.close()
         return {
             "status": "error",
             "error": str(e)

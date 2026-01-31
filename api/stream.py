@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import traceback
+import requests
 from database.db import SessionLocal
 from database.models import User, Follow, FollowRequest, Notification, Report, Block, Outfit, OutfitProduct, UserProgress, OutfitTryOnSignup, UserOutfit, Brand, UserBrand
 from utils.redis_client import r
@@ -3518,6 +3519,99 @@ async def save_outfit(request: SaveOutfitRequest):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
+
+
+@app.post("/outfits/tryon")
+async def try_on_outfit():
+    """
+    Virtual try-on using Google Gemini Nano Banana Pro
+
+    Hardcoded images for now:
+    - Person image: woman's photo
+    - Outfit image: silver crystal dress
+
+    Returns generated image where person is wearing the outfit
+    """
+    import base64
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        # Initialize Gemini client
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+        if not google_api_key:
+            raise HTTPException(status_code=500, detail="GOOGLE_API_KEY not configured")
+
+        client = genai.Client(api_key=google_api_key)
+
+        PRO_MODEL_ID = "gemini-3-pro-image-preview"
+
+        # Hardcoded image URLs for testing
+        person_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-31%20at%203.46.27%E2%80%AFPM.png?alt=media&token=bdfd0e55-1d86-416d-bf35-a7f8d8966d94"
+        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%207.18.42%E2%80%AFPM.png?alt=media&token=fb9fc1c5-8154-416d-a604-99c49af3a535"
+
+        # Download images
+        person_response = requests.get(person_image_url, timeout=10)
+        outfit_response = requests.get(outfit_image_url, timeout=10)
+
+        person_image_data = base64.b64encode(person_response.content).decode('utf-8')
+        outfit_image_data = base64.b64encode(outfit_response.content).decode('utf-8')
+
+        # Create the prompt with both images
+        prompt = """Replace the clothing of the woman in Image 1 with the exact outfit shown in Image 2. She should be wearing the same silver, crystal-embellished mini dress with identical beadwork, metallic fabric texture, neckline, shoulder detailing, gloves, and overall color. Keep the woman's face, facial features, expression, skin tone, hairstyle, and identity from Image 1 completely unchanged—do not alter her face in any way. Ensure realistic lighting, natural shadows, accurate body proportions, and seamless fabric fitting. The final result should be high-resolution and photorealistic."""
+
+        logger.info(f"🎨 Generating virtual try-on with Gemini...")
+
+        # Generate the image with both input images
+        response = client.models.generate_content(
+            model=PRO_MODEL_ID,
+            contents=[
+                types.Content(
+                    parts=[
+                        types.Part(text=prompt),
+                        types.Part(
+                            inline_data=types.Blob(
+                                mime_type="image/jpeg",
+                                data=base64.b64decode(person_image_data)
+                            )
+                        ),
+                        types.Part(
+                            inline_data=types.Blob(
+                                mime_type="image/jpeg",
+                                data=base64.b64decode(outfit_image_data)
+                            )
+                        )
+                    ]
+                )
+            ],
+            config=types.GenerateContentConfig(
+                response_modalities=['IMAGE'],
+                image_config=types.ImageConfig(
+                    aspect_ratio="9:16",  # Portrait mode for full body outfit
+                )
+            )
+        )
+
+        # Extract generated image
+        for part in response.parts:
+            if part.inline_data:
+                generated_image_data = base64.b64encode(part.inline_data.data).decode('utf-8')
+
+                logger.info(f"✅ Virtual try-on generated successfully")
+
+                return {
+                    "success": True,
+                    "generated_image": f"data:image/png;base64,{generated_image_data}",
+                    "message": "Virtual try-on completed"
+                }
+
+        # If no image was generated
+        raise HTTPException(status_code=500, detail="No image generated")
+
+    except Exception as e:
+        logger.error(f"❌ Error in virtual try-on: {e}")
+        raise HTTPException(status_code=500, detail=f"Virtual try-on failed: {str(e)}")
 
 
 @app.get("/users/{user_id}/outfits")

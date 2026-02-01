@@ -3549,7 +3549,7 @@ async def try_on_outfit():
 
         # Hardcoded image URLs for testing
         person_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-31%20at%203.46.27%E2%80%AFPM.png?alt=media&token=bdfd0e55-1d86-416d-bf35-a7f8d8966d94"
-        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%207.18.42%E2%80%AFPM.png?alt=media&token=fb9fc1c5-8154-416d-a604-99c49af3a535"
+        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%206.17.08%E2%80%AFPM.png?alt=media&token=0328edcc-0649-48dd-b535-c9f05fa45536"
 
         # Download images
         person_response = requests.get(person_image_url, timeout=10)
@@ -3588,7 +3588,7 @@ async def try_on_outfit():
             config=types.GenerateContentConfig(
                 response_modalities=['IMAGE'],
                 image_config=types.ImageConfig(
-                    aspect_ratio="9:16",  # Portrait mode for full body outfit
+                    aspect_ratio="9:16"  # Portrait mode for full body outfit
                 )
             )
         )

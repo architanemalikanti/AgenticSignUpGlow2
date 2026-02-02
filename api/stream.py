@@ -1359,144 +1359,6 @@ class EraPush(BaseModel):
     user_id: str
     era_text: str
 
-@app.post("/user/pushEra")
-async def push_era(era_data: EraPush):
-    """
-    Post a new era to the eras table (feed/notifications table).
-    Called when user clicks "Push This Era" in iOS.
-
-    Request body:
-    {
-        "user_id": "uuid-string",
-        "era_text": "archita is entering her law school era..."
-    }
-
-    Returns:
-        Success status and era post
-    """
-    db = SessionLocal()
-    try:
-        # Find the user
-        user = db.query(User).filter(User.id == era_data.user_id).first()
-
-        if not user:
-            return {
-                "status": "error",
-                "message": "User not found"
-            }
-
-        # Create new era post in eras table
-        new_era = Notification(
-            user_id=era_data.user_id,
-            content=era_data.era_text
-        )
-
-        db.add(new_era)
-        db.commit()
-        db.refresh(new_era)
-
-        logger.info(f"✅ Posted era for user {era_data.user_id}: {era_data.era_text[:50]}...")
-
-        # Send push notifications to all followers
-        from utils.push_notifications import send_era_notification
-
-        # Get all followers of this user
-        followers = db.query(Follow).filter(Follow.following_id == era_data.user_id).all()
-
-        logger.info(f"📢 Notifying {len(followers)} followers about new era")
-
-        for follow in followers:
-            # Get the follower's info
-            follower = db.query(User).filter(User.id == follow.follower_id).first()
-
-            if follower and follower.device_token:
-                try:
-                    await send_era_notification(
-                        device_token=follower.device_token,
-                        poster_name=user.name,
-                        era_content=era_data.era_text
-                    )
-                    logger.info(f"✅ Sent era notification to {follower.name}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to send era notification to {follower.name}: {e}")
-            else:
-                logger.debug(f"⚠️  Skipping notification for {follower.name if follower else 'unknown'} (no device token)")
-
-        return {
-            "status": "success",
-            "era_id": new_era.id,
-            "user_id": era_data.user_id,
-            "content": era_data.era_text,
-            "created_at": new_era.created_at.isoformat(),
-            "message": "Era posted successfully",
-            "notifications_sent": sum(1 for f in followers if db.query(User).filter(User.id == f.follower_id).first() and db.query(User).filter(User.id == f.follower_id).first().device_token)
-        }
-
-    except Exception as e:
-        logger.error(f"Error posting era for user {era_data.user_id}: {e}")
-        db.rollback()
-        return {
-            "status": "error",
-            "error": str(e)
-        }
-    finally:
-        db.close()
-
-@app.get("/debug/all-sessions")
-async def get_all_sessions():
-    """
-    Debug endpoint: Get ALL Redis session keys and their contents.
-    Returns a list of all sessions with their data.
-    """
-    try:
-        # Get all session keys
-        keys = r.keys("session:*")
-
-        if not keys:
-            return {
-                "status": "no_sessions",
-                "message": "No sessions found in Redis",
-                "total": 0,
-                "sessions": []
-            }
-
-        # Get data for all sessions
-        all_sessions = []
-        for key in keys:
-            key_str = key.decode() if isinstance(key, bytes) else key
-            session_data_str = r.get(key_str)
-
-            if session_data_str:
-                try:
-                    session_data = json.loads(session_data_str)
-                    all_sessions.append({
-                        "session_id": key_str.replace("session:", ""),
-                        "full_key": key_str,
-                        "analyze_button_pressed": session_data.get("analyze_button_pressed", False),
-                        "has_user_id": "user_id" in session_data,
-                        "signup_data": session_data.get("signup_data", {}),
-                        "full_data": session_data
-                    })
-                except json.JSONDecodeError:
-                    all_sessions.append({
-                        "session_id": key_str.replace("session:", ""),
-                        "full_key": key_str,
-                        "error": "Failed to parse JSON"
-                    })
-
-        return {
-            "status": "success",
-            "total": len(all_sessions),
-            "sessions": all_sessions
-        }
-
-    except Exception as e:
-        logger.error(f"Error fetching all sessions: {e}")
-        return {
-            "status": "error",
-            "error": str(e)
-        }
-
 # ===== PUSH NOTIFICATION ROUTES =====
 
 class DeviceTokenUpdate(BaseModel):
@@ -3549,7 +3411,7 @@ async def try_on_outfit():
 
         # Hardcoded image URLs for testing
         person_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-31%20at%203.46.27%E2%80%AFPM.png?alt=media&token=bdfd0e55-1d86-416d-bf35-a7f8d8966d94"
-        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%206.17.08%E2%80%AFPM.png?alt=media&token=0328edcc-0649-48dd-b535-c9f05fa45536"
+        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7284.jpg?alt=media&token=7710dfab-bb94-461e-b864-11eb83d63080"
 
         # Download images
         person_response = requests.get(person_image_url, timeout=10)
@@ -3563,7 +3425,7 @@ async def try_on_outfit():
 
 IMPORTANT: Adhere strictly to the body mass index and skeletal proportions of the person in Image 1. Do not lengthen limbs or alter the torso-to-leg ratio. The fabric must drape according to the specific curves and physical frame shown in the reference image. Ensure realistic lighting, natural shadows, accurate body proportions, and seamless fabric fitting.
 
-Style: low-resolution, soft-focused candid photograph, slight motion blur, visible film grain, dim indoor lighting, muted colors, shallow detail, vintage digital camera aesthetic. Do not sharpen, retain blur and grain, preserve candid imperfections."""
+Image quality: make sure the image quality looks like it's being taken by a digital camera. """
 
         logger.info(f"🎨 Generating virtual try-on with Gemini...")
 

@@ -3421,7 +3421,7 @@ async def try_on_outfit():
         outfit_image_data = base64.b64encode(outfit_response.content).decode('utf-8')
 
         # Create the prompt with both images
-        prompt = """Replace the clothing of the woman in Image 1 with the exact outfit shown in Image 2. She should be wearing the same outfit with identical details, fabric texture, neckline, detailing, and overall color. Keep the woman's face, facial features, expression, skin tone, hairstyle, and identity from Image 1 completely unchanged—do not alter her face in any way.
+        prompt = """make the person in image 1 try on the clothes of the person in image 2. it must be the exact outfit shown in Image 2. the woman in image 1 should be wearing the same outfit. Keep the woman's face, facial features, expression, skin tone, hairstyle, and identity from Image 1 completely unchanged—do not alter her face in any way.
 
 IMPORTANT: Adhere strictly to the body mass index and skeletal proportions of the person in Image 1. Do not lengthen limbs or alter the torso-to-leg ratio. The fabric must drape according to the specific curves and physical frame shown in the reference image. Ensure realistic lighting, natural shadows, accurate body proportions, and seamless fabric fitting.
 

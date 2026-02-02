@@ -3409,48 +3409,71 @@ async def try_on_outfit():
 
         PRO_MODEL_ID = "gemini-3-pro-image-preview"
 
-        # Hardcoded image URLs for testing
-        person_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-31%20at%203.46.27%E2%80%AFPM.png?alt=media&token=bdfd0e55-1d86-416d-bf35-a7f8d8966d94"
+        # Multiple person reference images (for better accuracy)
+        person_image_urls = [
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7469.jpg?alt=media&token=b4796b3a-a9ad-4697-9c7d-63d113718c9a",
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7470.jpg?alt=media&token=c4e73221-8d12-461f-b38a-bdd091a47a54",
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7471.PNG?alt=media&token=9233eae6-3873-480a-a28e-0bf158131174"
+        ]
         outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7284.jpg?alt=media&token=7710dfab-bb94-461e-b864-11eb83d63080"
 
-        # Download images
-        person_response = requests.get(person_image_url, timeout=10)
-        outfit_response = requests.get(outfit_image_url, timeout=10)
+        # Download all person reference images
+        person_images_data = []
+        for url in person_image_urls:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            person_images_data.append(base64.b64encode(response.content).decode('utf-8'))
 
-        person_image_data = base64.b64encode(person_response.content).decode('utf-8')
+        # Download outfit image
+        outfit_response = requests.get(outfit_image_url, timeout=10)
+        outfit_response.raise_for_status()
         outfit_image_data = base64.b64encode(outfit_response.content).decode('utf-8')
 
-        # Create the prompt with both images
-        prompt = """make the person in image 1 try on the clothes of the person in image 2. it must be the exact outfit shown in Image 2. the woman in image 1 should be wearing the same outfit. Keep the woman's face, facial features, expression, skin tone, hairstyle, and identity from Image 1 completely unchanged—do not alter her face in any way.
+        # Create the prompt with multiple reference images
+        prompt = f"""I'm providing {len(person_images_data)} reference images of the same person (Images 1-{len(person_images_data)}) to help you understand their features, body proportions, and identity. The final image shows the outfit to try on.
 
-IMPORTANT: Adhere strictly to the body mass index and skeletal proportions of the person in Image 1. Do not lengthen limbs or alter the torso-to-leg ratio. The fabric must drape according to the specific curves and physical frame shown in the reference image. Ensure realistic lighting, natural shadows, accurate body proportions, and seamless fabric fitting.
+Task: Make the person from the reference images try on the outfit shown in the final image.
 
-Image quality: make sure the image quality looks like it's being taken by a digital camera. """
+CRITICAL REQUIREMENTS:
+- Study ALL reference images to understand: face shape, facial features, skin tone, body proportions, skeletal structure, BMI, and physical frame
+- Keep the person's face, facial features, expression, skin tone, hairstyle, and identity EXACTLY as shown in the reference images—do not alter their face in any way
+- Adhere strictly to the body mass index and skeletal proportions shown in the reference images
+- Do not lengthen limbs or alter the torso-to-leg ratio
+- The fabric must drape according to the specific curves and physical frame shown in the reference images
+- Ensure realistic lighting, natural shadows, accurate body proportions, and seamless fabric fitting
 
-        logger.info(f"🎨 Generating virtual try-on with Gemini...")
+Image quality: make it look like it's taken by a polaroid camera - imperfect quality, but realistic."""
 
-        # Generate the image with both input images
+        logger.info(f"🎨 Generating virtual try-on with Gemini using {len(person_images_data)} reference images...")
+
+        # Build parts: prompt + all person images + outfit image
+        parts = [types.Part(text=prompt)]
+
+        # Add all person reference images
+        for person_img_data in person_images_data:
+            parts.append(
+                types.Part(
+                    inline_data=types.Blob(
+                        mime_type="image/jpeg",
+                        data=base64.b64decode(person_img_data)
+                    )
+                )
+            )
+
+        # Add outfit image last
+        parts.append(
+            types.Part(
+                inline_data=types.Blob(
+                    mime_type="image/jpeg",
+                    data=base64.b64decode(outfit_image_data)
+                )
+            )
+        )
+
+        # Generate the image with all reference images
         response = client.models.generate_content(
             model=PRO_MODEL_ID,
-            contents=[
-                types.Content(
-                    parts=[
-                        types.Part(text=prompt),
-                        types.Part(
-                            inline_data=types.Blob(
-                                mime_type="image/jpeg",
-                                data=base64.b64decode(person_image_data)
-                            )
-                        ),
-                        types.Part(
-                            inline_data=types.Blob(
-                                mime_type="image/jpeg",
-                                data=base64.b64decode(outfit_image_data)
-                            )
-                        )
-                    ]
-                )
-            ],
+            contents=[types.Content(parts=parts)],
             config=types.GenerateContentConfig(
                 response_modalities=['IMAGE'],
                 image_config=types.ImageConfig(

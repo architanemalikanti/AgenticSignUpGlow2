@@ -3415,7 +3415,7 @@ async def try_on_outfit():
             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7470.jpg?alt=media&token=c4e73221-8d12-461f-b38a-bdd091a47a54",
             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7471.PNG?alt=media&token=9233eae6-3873-480a-a28e-0bf158131174",
             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%2012.46.58%E2%80%AFAM.png?alt=media&token=c7001215-29ca-45b5-85b6-1f97a0a94734",
-            "file:///var/folders/gm/mt1f4k557lbg2trb9wphb8hm0000gn/T/TemporaryItems/NSIRD_screencaptureui_Jt1dfD/Screenshot%202026-02-05%20at%2012.47.08%E2%80%AFAM.png"
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%2012.47.18%E2%80%AFAM.png?alt=media&token=1a3a480d-49c8-4b08-8af0-c1aec6748080"
         ]
         outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%207.28.29%E2%80%AFPM.png?alt=media&token=6927fae3-0225-4866-ae37-226229fb2e13"
 

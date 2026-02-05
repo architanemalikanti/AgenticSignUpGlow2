@@ -3415,7 +3415,10 @@ async def try_on_outfit():
             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7470.jpg?alt=media&token=c4e73221-8d12-461f-b38a-bdd091a47a54",
             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7471.PNG?alt=media&token=9233eae6-3873-480a-a28e-0bf158131174",
             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%2012.46.58%E2%80%AFAM.png?alt=media&token=c7001215-29ca-45b5-85b6-1f97a0a94734",
-            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%2012.47.18%E2%80%AFAM.png?alt=media&token=1a3a480d-49c8-4b08-8af0-c1aec6748080"
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%2012.47.18%E2%80%AFAM.png?alt=media&token=1a3a480d-49c8-4b08-8af0-c1aec6748080",
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.06.55%E2%80%AFAM.png?alt=media&token=293953a8-8889-4645-82a6-533ba33a00e7",
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.02%E2%80%AFAM.png?alt=media&token=19600381-b32a-466d-b223-32716a95d1f8",
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.30%E2%80%AFAM.png?alt=media&token=21a4a5e0-0ebc-4333-941d-d3b6073e4e06"
         ]
         outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%207.28.29%E2%80%AFPM.png?alt=media&token=6927fae3-0225-4866-ae37-226229fb2e13"
 
@@ -3437,8 +3440,8 @@ async def try_on_outfit():
 Task: Make the person from the reference images try on the outfit shown in the final image.
 
 CRITICAL REQUIREMENTS:
-- Study ALL reference images to understand: face shape, facial features, skin tone, body proportions, skeletal structure, BMI, and physical frame
-- Keep the person's face, facial features, expression, skin tone, hairstyle, and identity EXACTLY as shown in the reference images—do not alter their face in any way
+- Study ALL reference images to understand: face shape, features, skin tone, body proportions, skeletal structure, BMI, and physical frame
+- Keep the person's face, facial features, skin tone, hairstyle, and identity EXACTLY as shown in the reference images—do not alter their face in any way.
 - Adhere strictly to the body mass index and skeletal proportions shown in the reference images
 - Do not lengthen limbs or alter the torso-to-leg ratio
 - The fabric must drape according to the specific curves and physical frame shown in the reference images

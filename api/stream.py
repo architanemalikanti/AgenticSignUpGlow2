@@ -3413,9 +3413,11 @@ async def try_on_outfit():
         person_image_urls = [
             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7469.jpg?alt=media&token=b4796b3a-a9ad-4697-9c7d-63d113718c9a",
             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7470.jpg?alt=media&token=c4e73221-8d12-461f-b38a-bdd091a47a54",
-            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7471.PNG?alt=media&token=9233eae6-3873-480a-a28e-0bf158131174"
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7471.PNG?alt=media&token=9233eae6-3873-480a-a28e-0bf158131174",
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%2012.46.58%E2%80%AFAM.png?alt=media&token=c7001215-29ca-45b5-85b6-1f97a0a94734",
+            "file:///var/folders/gm/mt1f4k557lbg2trb9wphb8hm0000gn/T/TemporaryItems/NSIRD_screencaptureui_Jt1dfD/Screenshot%202026-02-05%20at%2012.47.08%E2%80%AFAM.png"
         ]
-        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-02%20at%207.55.48%E2%80%AFPM.png?alt=media&token=8469f562-594d-4a9a-8999-2edea1afce88"
+        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%207.28.29%E2%80%AFPM.png?alt=media&token=6927fae3-0225-4866-ae37-226229fb2e13"
 
         # Download all person reference images
         person_images_data = []
@@ -3430,7 +3432,7 @@ async def try_on_outfit():
         outfit_image_data = base64.b64encode(outfit_response.content).decode('utf-8')
 
         # Create the prompt with multiple reference images
-        prompt = f"""I'm providing {len(person_images_data)} reference images of the same person (Images 1-{len(person_images_data)}) to help you understand their features, body proportions, and identity. The final image shows the outfit to try on.
+        prompt = f"""I'm providing {len(person_images_data)} reference images of the same person (Images 1-{len(person_images_data)}) to help you understand their facial features, body proportions, and identity. The final image shows the outfit to try on.
 
 Task: Make the person from the reference images try on the outfit shown in the final image.
 
@@ -3442,7 +3444,7 @@ CRITICAL REQUIREMENTS:
 - The fabric must drape according to the specific curves and physical frame shown in the reference images
 - Ensure realistic lighting, natural shadows, accurate body proportions, and seamless fabric fitting
 
-Image quality: make it look like it's taken by a polaroid camera - imperfect quality, but realistic."""
+Image quality: make it look like it's taken by a polaroid camera - imperfect quality, but realistic. make the background the same background in the final reference image. """
 
         logger.info(f"🎨 Generating virtual try-on with Gemini using {len(person_images_data)} reference images...")
 

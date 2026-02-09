@@ -3418,7 +3418,7 @@ async def try_on_outfit():
             # "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.02%E2%80%AFAM.png?alt=media&token=19600381-b32a-466d-b223-32716a95d1f8",
             # "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.30%E2%80%AFAM.png?alt=media&token=21a4a5e0-0ebc-4333-941d-d3b6073e4e06"
         ]
-        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%206.25.42%E2%80%AFPM.png?alt=media&token=31f8287e-c1ef-4233-bd93-6f485da8b07c"
+        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%206.28.09%E2%80%AFPM.png?alt=media&token=a42ca3eb-1a08-4c49-ab06-8d3942fef2c2"
 
         # Download all person reference images
         person_images_data = []

@@ -3489,19 +3489,37 @@ Image quality: make it look like it's taken by a polaroid camera - imperfect qua
         )
 
         # Extract generated image
-        for part in response.parts:
-            if part.inline_data:
-                generated_image_data = base64.b64encode(part.inline_data.data).decode('utf-8')
+        logger.info(f"Response received. Has parts: {hasattr(response, 'parts')}")
+        logger.info(f"Response type: {type(response)}")
 
-                logger.info(f"✅ Virtual try-on generated successfully")
+        # Check if response has candidates (newer API structure)
+        if hasattr(response, 'candidates') and response.candidates:
+            for candidate in response.candidates:
+                if hasattr(candidate, 'content') and candidate.content:
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data:
+                            generated_image_data = base64.b64encode(part.inline_data.data).decode('utf-8')
+                            logger.info(f"✅ Virtual try-on generated successfully")
+                            return {
+                                "success": True,
+                                "generated_image": f"data:image/png;base64,{generated_image_data}",
+                                "message": "Virtual try-on completed"
+                            }
 
-                return {
-                    "success": True,
-                    "generated_image": f"data:image/png;base64,{generated_image_data}",
-                    "message": "Virtual try-on completed"
-                }
+        # Fallback to old structure
+        if hasattr(response, 'parts') and response.parts:
+            for part in response.parts:
+                if hasattr(part, 'inline_data') and part.inline_data:
+                    generated_image_data = base64.b64encode(part.inline_data.data).decode('utf-8')
+                    logger.info(f"✅ Virtual try-on generated successfully")
+                    return {
+                        "success": True,
+                        "generated_image": f"data:image/png;base64,{generated_image_data}",
+                        "message": "Virtual try-on completed"
+                    }
 
         # If no image was generated
+        logger.error(f"No image in response. Response: {response}")
         raise HTTPException(status_code=500, detail="No image generated")
 
     except Exception as e:

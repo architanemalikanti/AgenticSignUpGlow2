@@ -3413,8 +3413,8 @@ async def try_on_outfit():
         # Using only 1 image to avoid content safety blocks (multiple images trigger identity manipulation concerns)
         person_image_urls = [
             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7469.jpg?alt=media&token=b4796b3a-a9ad-4697-9c7d-63d113718c9a"
-            #"https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.15.34%E2%80%AFAM.png?alt=media&token=94b83e28-5f26-4faf-8228-06c966a7203b"
-            # "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.06.55%E2%80%AFAM.png?alt=media&token=293953a8-8889-4645-82a6-533ba33a00e7",
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.15.34%E2%80%AFAM.png?alt=media&token=94b83e28-5f26-4faf-8228-06c966a7203b"
+             "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.06.55%E2%80%AFAM.png?alt=media&token=293953a8-8889-4645-82a6-533ba33a00e7",
             # "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.02%E2%80%AFAM.png?alt=media&token=19600381-b32a-466d-b223-32716a95d1f8",
             # "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.30%E2%80%AFAM.png?alt=media&token=21a4a5e0-0ebc-4333-941d-d3b6073e4e06"
         ]
@@ -3433,15 +3433,15 @@ async def try_on_outfit():
         outfit_image_data = base64.b64encode(outfit_response.content).decode('utf-8')
 
         # Softer prompt to avoid content safety blocks
-        prompt = f"""Create a fashion visualization showing how the outfit from the second image would look on the person from the first image.
+        prompt = f"""Make the girl from image 1 wear the outfit in image 2. 
 
 Style requirements:
-- Maintain the person's natural appearance and proportions
+- Maintain the girl in image 1's natural appearance and proportions
 - Show the outfit fitting naturally
-- Use polaroid-style photo quality - slightly grainy, authentic feel
-- Keep the same background as the outfit reference image
+- Use polaroid-style photo quality - slightly grainy, authentic feel. 
+- Make the girl in image 1 in a natural position, caught in the middle of her doing something. 
 
-Generate a realistic fashion preview image."""
+"""
 
         logger.info(f"🎨 Generating virtual try-on with Gemini using {len(person_images_data)} reference images...")
 

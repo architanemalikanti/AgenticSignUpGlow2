@@ -3412,8 +3412,8 @@ async def try_on_outfit():
         # Multiple person reference images (for better accuracy)
         # Using only 1 image to avoid content safety blocks (multiple images trigger identity manipulation concerns)
         person_image_urls = [
-            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7469.jpg?alt=media&token=b4796b3a-a9ad-4697-9c7d-63d113718c9a"
-            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.15.34%E2%80%AFAM.png?alt=media&token=94b83e28-5f26-4faf-8228-06c966a7203b"
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7469.jpg?alt=media&token=b4796b3a-a9ad-4697-9c7d-63d113718c9a",
+            "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.15.34%E2%80%AFAM.png?alt=media&token=94b83e28-5f26-4faf-8228-06c966a7203b",
              "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.06.55%E2%80%AFAM.png?alt=media&token=293953a8-8889-4645-82a6-533ba33a00e7",
             # "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.02%E2%80%AFAM.png?alt=media&token=19600381-b32a-466d-b223-32716a95d1f8",
             # "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.30%E2%80%AFAM.png?alt=media&token=21a4a5e0-0ebc-4333-941d-d3b6073e4e06"

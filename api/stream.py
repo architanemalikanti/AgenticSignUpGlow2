@@ -3439,7 +3439,7 @@ Style requirements:
 - Maintain the girl in image 1's natural appearance and proportions
 - Show the outfit fitting naturally
 - Use polaroid-style photo quality - slightly grainy, authentic feel. 
-- Make the girl in image 1 in a natural position, caught in the middle of her doing something. 
+- Make the girl in image 1 in a natural position, facing the camera. 
 
 """
 

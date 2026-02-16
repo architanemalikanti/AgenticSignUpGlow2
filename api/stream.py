@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os, json, logging
 from pathlib import Path
-from fastapi import FastAPI, Query, BackgroundTasks, File, UploadFile, HTTPException, Request
+from fastapi import FastAPI, Query, BackgroundTasks, File, UploadFile, HTTPException, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
@@ -13,6 +13,11 @@ from utils.redis_client import r
 from aioapns import APNs, NotificationRequest
 from datetime import datetime
 from api.cv_test_endpoint import router as cv_test_router
+import base64
+import httpx
+from google.api_core import client_options
+from google.cloud import aiplatform_v1
+from vertexai.preview.vision_models import Image, ImageGenerationModel
 
 # Load .env from the root directory
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -3740,7 +3745,13 @@ Examples:
     finally:
         db.close()
 
-
+#converts ifrebase url to a base64 for virtual try on api. 
+async def fetch_image_b64(url: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        if response.status_code != 200:
+            raise Exception(f"Failed to download image from {url}")
+        return base64.b64encode(response.content).decode("utf-8")
 
 @app.post("/{user_id}/outfitTryon")
 async def tryOn(user_id: str, request: Request):
@@ -3748,6 +3759,78 @@ async def tryOn(user_id: str, request: Request):
     try_on_photo = data.get("try_on_photo")
     #let's hardcode the user photo for now.
     user_photo = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7469.jpg?alt=media&token=b4796b3a-a9ad-4697-9c7d-63d113718c9a" 
+
+    #virtual try on stage:
+    from google.api_core import client_options
+    from google.cloud import aiplatform_v1
+
+    #setup:
+    PROJECT_ID = "serene-flare-479206-p1"
+    LOCATION = "us-central1"
+
+    try:
+        # Download and encode images
+        user_b64 = await fetch_image_b64(user_photo)
+        garment_b64 = await fetch_image_b64(try_on_photo)
+
+        # --- STAGE 1: VIRTUAL TRY-ON (The Fit) ---
+        opts = client_options.ClientOptions(api_endpoint=f"{LOCATION}-aiplatform.googleapis.com")
+        prediction_client = aiplatform_v1.PredictionServiceClient(client_options=opts)
+        
+        # This is the specialized "VTON" machine
+        vton_endpoint = f"projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/virtual-try-on-001"
+
+        instance = {
+            "personImage": {"image": {"bytesBase64Encoded": user_b64}},
+            "productImages": [{"image": {"bytesBase64Encoded": garment_b64}}]
+        }
+
+        # Parameters for quality/count
+        parameters = {"sampleCount": 1}
+
+        vton_response = prediction_client.predict(
+            endpoint=vton_endpoint, 
+            instances=[instance], 
+            parameters=parameters
+        )
+
+        # Raw dressed image from Step 1
+        raw_fit_b64 = vton_response.predictions[0]['bytesBase64Encoded']
+
+        # --- STAGE 2: IMAGEN 3 (The Polaroid Vibe) ---
+        # Initialize Vertex AI for the creative part
+        import vertexai
+        vertexai.init(project=PROJECT_ID, location=LOCATION)
+        
+        creative_model = ImageGenerationModel.from_pretrained("imagen-3.0-capability-001")
+        
+        # We wrap the b64 from Step 1 into a Vertex Image object
+        fit_image = Image(image_bytes=base64.b64decode(raw_fit_b64))
+
+        styled_response = creative_model.edit_image(
+            prompt=(
+                "A polaroid photo of the person in the image. "
+                "Authentic film grain, heavy camera flash. Make it realistic."
+                "slightly faded colors. Keep the person's face exactly as is."
+            ),
+            base_image=fit_image,
+            # This setting helps bypass aggressive safety filters for e-commerce
+            person_generation="allow_adult"
+        )
+
+        # Get the final stylized base64
+        final_b64 = styled_response.images[0]._as_base64_string()
+
+        return {
+            "status": "success",
+            "image": f"data:image/png;base64,{final_b64}"
+        }
+
+    except Exception as e:
+        print(f"ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail="The fashion gods are angry. Check your logs.")
+
+
 
 
 

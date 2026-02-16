@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os, json, logging
 from pathlib import Path
-from fastapi import FastAPI, Query, BackgroundTasks, File, UploadFile, HTTPException
+from fastapi import FastAPI, Query, BackgroundTasks, File, UploadFile, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
@@ -3741,7 +3741,21 @@ Examples:
         db.close()
 
 
+
+@app.post("/{user_id}/outfitTryon")
+async def tryOn(user_id: str, request: Request):
+    data = await request.json()
+    try_on_photo = data.get("try_on_photo")
+    #let's hardcode the user photo for now.
+    user_photo = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7469.jpg?alt=media&token=b4796b3a-a9ad-4697-9c7d-63d113718c9a" 
+
+
+
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("stream:app", host="0.0.0.0", port=8000, reload=True)
+
+
 

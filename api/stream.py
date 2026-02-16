@@ -15,8 +15,6 @@ from datetime import datetime
 from api.cv_test_endpoint import router as cv_test_router
 import base64
 import httpx
-from google.api_core import client_options
-from google.cloud import aiplatform_v1
 from vertexai.preview.vision_models import Image, ImageGenerationModel
 
 # Load .env from the root directory

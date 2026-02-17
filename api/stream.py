@@ -3781,10 +3781,6 @@ async def tryOn(user_id: str, request: Request):
         user_b64 = await fetch_image_b64(user_photo)
         garment_b64 = await fetch_image_b64(try_on_photo)
 
-        # Download polaroid reference image for styling
-        polaroid_ref_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-16%20at%207.16.34%E2%80%AFPM.png?alt=media&token=70803df0-1d58-4aef-9aeb-a379497cfe2e"
-        polaroid_ref_b64 = await fetch_image_b64(polaroid_ref_url)
-
         # --- STAGE 1: VIRTUAL TRY-ON (The Fit) ---
         # We use aiplatform_v1 for VTON because it's a specific publisher model
         opts = client_options.ClientOptions(api_endpoint=f"{LOCATION}-aiplatform.googleapis.com")
@@ -3814,22 +3810,29 @@ async def tryOn(user_id: str, request: Request):
         # 3. FIXED: Initialize vertexai with the global credentials
         vertexai.init(project=PROJECT_ID, location=LOCATION, credentials=credentials)
         
+        # Load the creative model
         creative_model = ImageGenerationModel.from_pretrained("imagen-3.0-capability-001")
-        
-        fit_image = Image(image_bytes=base64.b64decode(raw_fit_b64))
-        polaroid_ref_image = Image(image_bytes=base64.b64decode(polaroid_ref_b64))
 
-        styled_response = creative_model.edit_image(
+        # 1. Create the Vertex Image object from the Stage 1 output
+        # (Make sure raw_fit_b64 is the base64 string from prediction_client.predict)
+        fit_image = Image(image_bytes=base64.b64decode(raw_fit_b64))
+
+        # 2. FIXED: Use generate_images with context_images
+        styled_response = creative_model.generate_images(
             prompt=(
-                "A realistic 90s polaroid photo of the person. "
-                "Authentic film grain, heavy camera flash, white square frame border. "
-                "Keep the face and clothing details from the original exactly as they are."
+                "A realistic 90s vintage polaroid photo of the person in the image. "
+                "Authentic film grain, heavy camera flash, white square frame border, "
+                "faded colors. High quality, detailed."
             ),
-            base_image=fit_image,
-            reference_images=[polaroid_ref_image],
+            # This is how we tell it to look at the Stage 1 result
+            context_images=[fit_image],
+            number_of_images=1,
+            aspect_ratio="1:1",
+            # This helps the AI keep the face recognizable
             person_generation="allow_adult"
         )
 
+        # 3. Get the final base64 string
         final_b64 = styled_response.images[0]._as_base64_string()
 
         return {

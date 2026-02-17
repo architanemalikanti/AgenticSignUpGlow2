@@ -3816,17 +3816,14 @@ async def tryOn(user_id: str, request: Request):
         # Create the Vertex Image object from Stage 1 result
         fit_image = Image(image_bytes=base64.b64decode(raw_fit_b64))
 
-        # We'll use the .edit_image method but with the 'product-image' mode
-        # which effectively acts as a global style transfer (no mask needed)
+        # Use edit_image with mask_free_guidance mode
         styled_response = creative_model.edit_image(
             prompt=(
                 "A realistic 90s vintage polaroid photo, authentic film grain, "
                 "heavy camera flash, white square frame border, faded colors."
             ),
             base_image=fit_image,
-            # 'product-image' mode tells the model to treat the whole image
-            # as a reference for the new style without needing a mask.
-            edit_mode="product-image",
+            mask_free_guidance=True,
             person_generation="allow_adult"
         )
 

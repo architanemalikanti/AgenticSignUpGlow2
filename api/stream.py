@@ -3485,10 +3485,7 @@ Style requirements:
             model=PRO_MODEL_ID,
             contents=[types.Content(parts=parts)],
             config=types.GenerateContentConfig(
-                response_modalities=['IMAGE'],
-                image_config=types.ImageConfig(
-                    aspect_ratio="9:16"  # Portrait mode for full body outfit
-                )
+                response_modalities=['IMAGE']
             )
         )
 

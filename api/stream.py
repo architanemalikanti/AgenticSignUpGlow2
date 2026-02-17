@@ -3781,6 +3781,10 @@ async def tryOn(user_id: str, request: Request):
         user_b64 = await fetch_image_b64(user_photo)
         garment_b64 = await fetch_image_b64(try_on_photo)
 
+        # Download polaroid reference image for styling
+        polaroid_ref_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-16%20at%207.16.34%E2%80%AFPM.png?alt=media&token=70803df0-1d58-4aef-9aeb-a379497cfe2e"
+        polaroid_ref_b64 = await fetch_image_b64(polaroid_ref_url)
+
         # --- STAGE 1: VIRTUAL TRY-ON (The Fit) ---
         # We use aiplatform_v1 for VTON because it's a specific publisher model
         opts = client_options.ClientOptions(api_endpoint=f"{LOCATION}-aiplatform.googleapis.com")
@@ -3813,6 +3817,7 @@ async def tryOn(user_id: str, request: Request):
         creative_model = ImageGenerationModel.from_pretrained("imagen-3.0-capability-001")
         
         fit_image = Image(image_bytes=base64.b64decode(raw_fit_b64))
+        polaroid_ref_image = Image(image_bytes=base64.b64decode(polaroid_ref_b64))
 
         styled_response = creative_model.edit_image(
             prompt=(
@@ -3821,6 +3826,7 @@ async def tryOn(user_id: str, request: Request):
                 "Keep the face and clothing details from the original exactly as they are."
             ),
             base_image=fit_image,
+            reference_images=[polaroid_ref_image],
             person_generation="allow_adult"
         )
 

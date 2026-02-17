@@ -3813,26 +3813,23 @@ async def tryOn(user_id: str, request: Request):
         # Load the creative model
         creative_model = ImageGenerationModel.from_pretrained("imagen-3.0-capability-001")
 
-        # 1. Create the Vertex Image object from the Stage 1 output
-        # (Make sure raw_fit_b64 is the base64 string from prediction_client.predict)
+        # Create the Vertex Image object from Stage 1 result
         fit_image = Image(image_bytes=base64.b64decode(raw_fit_b64))
 
-        # 2. FIXED: Use generate_images with context_images
-        styled_response = creative_model.generate_images(
+        # We'll use the .edit_image method but with the 'product-image' mode
+        # which effectively acts as a global style transfer (no mask needed)
+        styled_response = creative_model.edit_image(
             prompt=(
-                "A realistic 90s vintage polaroid photo of the person in the image. "
-                "Authentic film grain, heavy camera flash, white square frame border, "
-                "faded colors. High quality, detailed."
+                "A realistic 90s vintage polaroid photo, authentic film grain, "
+                "heavy camera flash, white square frame border, faded colors."
             ),
-            # This is how we tell it to look at the Stage 1 result
-            context_images=[fit_image],
-            number_of_images=1,
-            aspect_ratio="1:1",
-            # This helps the AI keep the face recognizable
+            base_image=fit_image,
+            # 'product-image' mode tells the model to treat the whole image
+            # as a reference for the new style without needing a mask.
+            edit_mode="product-image",
             person_generation="allow_adult"
         )
 
-        # 3. Get the final base64 string
         final_b64 = styled_response.images[0]._as_base64_string()
 
         return {

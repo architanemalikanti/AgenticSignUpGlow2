@@ -3743,7 +3743,26 @@ Examples:
     finally:
         db.close()
 
-#converts ifrebase url to a base64 for virtual try on api. 
+import os
+import base64
+import httpx
+from fastapi import FastAPI, Request, HTTPException
+
+# 1. FIXED: Missing service_account import
+from google.oauth2 import service_account
+from google.api_core import client_options
+from google.cloud import aiplatform_v1
+import vertexai
+from vertexai.preview.vision_models import Image, ImageGenerationModel
+
+# --- CONFIG ---
+PROJECT_ID = "serene-flare-479206-p1"
+LOCATION = "us-central1"
+KEY_PATH = "/home/ec2-user/keys/serene-flare-479206-p1-5a1a40510b59.json"
+
+# Load credentials ONCE at the global level for efficiency
+credentials = service_account.Credentials.from_service_account_file(KEY_PATH)
+
 async def fetch_image_b64(url: str):
     async with httpx.AsyncClient() as client:
         response = await client.get(url)
@@ -3755,27 +3774,23 @@ async def fetch_image_b64(url: str):
 async def tryOn(user_id: str, request: Request):
     data = await request.json()
     try_on_photo = data.get("try_on_photo")
-    #let's hardcode the user photo for now.
     user_photo = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/IMG_7469.jpg?alt=media&token=b4796b3a-a9ad-4697-9c7d-63d113718c9a" 
 
-    #virtual try on stage:
-    from google.api_core import client_options
-    from google.cloud import aiplatform_v1
-
-    #setup:
-    PROJECT_ID = "serene-flare-479206-p1"
-    LOCATION = "us-central1"
-
     try:
-        # Download and encode images
+        # Download images
         user_b64 = await fetch_image_b64(user_photo)
         garment_b64 = await fetch_image_b64(try_on_photo)
 
         # --- STAGE 1: VIRTUAL TRY-ON (The Fit) ---
+        # We use aiplatform_v1 for VTON because it's a specific publisher model
         opts = client_options.ClientOptions(api_endpoint=f"{LOCATION}-aiplatform.googleapis.com")
-        prediction_client = aiplatform_v1.PredictionServiceClient(client_options=opts)
         
-        # This is the specialized "VTON" machine
+        # 2. FIXED: Pass credentials to the PredictionServiceClient
+        prediction_client = aiplatform_v1.PredictionServiceClient(
+            client_options=opts, 
+            credentials=credentials
+        )
+        
         vton_endpoint = f"projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/virtual-try-on-001"
 
         instance = {
@@ -3783,40 +3798,32 @@ async def tryOn(user_id: str, request: Request):
             "productImages": [{"image": {"bytesBase64Encoded": garment_b64}}]
         }
 
-        # Parameters for quality/count
-        parameters = {"sampleCount": 1}
-
         vton_response = prediction_client.predict(
             endpoint=vton_endpoint, 
             instances=[instance], 
-            parameters=parameters
+            parameters={"sampleCount": 1}
         )
 
-        # Raw dressed image from Step 1
         raw_fit_b64 = vton_response.predictions[0]['bytesBase64Encoded']
 
         # --- STAGE 2: IMAGEN 3 (The Polaroid Vibe) ---
-        # Initialize Vertex AI for the creative part
-        import vertexai
-        vertexai.init(project=PROJECT_ID, location=LOCATION)
+        # 3. FIXED: Initialize vertexai with the global credentials
+        vertexai.init(project=PROJECT_ID, location=LOCATION, credentials=credentials)
         
         creative_model = ImageGenerationModel.from_pretrained("imagen-3.0-capability-001")
         
-        # We wrap the b64 from Step 1 into a Vertex Image object
         fit_image = Image(image_bytes=base64.b64decode(raw_fit_b64))
 
         styled_response = creative_model.edit_image(
             prompt=(
-                "A polaroid photo of the person in the image. "
-                "Authentic film grain, heavy camera flash. Make it realistic."
-                "slightly faded colors. Keep the person's face exactly as is."
+                "A realistic 90s polaroid photo of the person. "
+                "Authentic film grain, heavy camera flash, white square frame border. "
+                "Keep the face and clothing details from the original exactly as they are."
             ),
             base_image=fit_image,
-            # This setting helps bypass aggressive safety filters for e-commerce
             person_generation="allow_adult"
         )
 
-        # Get the final stylized base64
         final_b64 = styled_response.images[0]._as_base64_string()
 
         return {
@@ -3826,17 +3833,10 @@ async def tryOn(user_id: str, request: Request):
 
     except Exception as e:
         print(f"ERROR: {str(e)}")
-        raise HTTPException(status_code=500, detail="The fashion gods are angry. Check your logs.")
-
-
-
-
-
-
+        # If it crashes here, check if PROJECT_ID matches the one in your JSON key!
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("stream:app", host="0.0.0.0", port=8000, reload=True)
-
-
 

@@ -3387,19 +3387,28 @@ async def save_outfit(request: SaveOutfitRequest):
 
 
 @app.post("/outfits/tryon")
-async def try_on_outfit():
+async def try_on_outfit(request: Request):
     """
     Virtual try-on using Google Gemini Nano Banana Pro
 
-    Hardcoded images for now:
-    - Person image: woman's photo
-    - Outfit image: silver crystal dress
+    Takes outfit image URL from iOS request body.
+    Person images are hardcoded for now.
 
     Returns generated image where person is wearing the outfit
     """
     import base64
 
     try:
+        # Get inputs from request body
+        data = await request.json()
+        user_id = data.get("user_id")
+        outfit_image_url = data.get("outfit_image_url")
+
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+        if not outfit_image_url:
+            raise HTTPException(status_code=400, detail="outfit_image_url is required")
+
         from google import genai
         from google.genai import types
 
@@ -3421,7 +3430,6 @@ async def try_on_outfit():
             # "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.02%E2%80%AFAM.png?alt=media&token=19600381-b32a-466d-b223-32716a95d1f8",
             # "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-02-05%20at%201.08.30%E2%80%AFAM.png?alt=media&token=21a4a5e0-0ebc-4333-941d-d3b6073e4e06"
         ]
-        outfit_image_url = "https://firebasestorage.googleapis.com/v0/b/glow-55f19.firebasestorage.app/o/Screenshot%202026-01-11%20at%206.28.09%E2%80%AFPM.png?alt=media&token=a42ca3eb-1a08-4c49-ab06-8d3942fef2c2"
 
         # Download all person reference images
         person_images_data = []

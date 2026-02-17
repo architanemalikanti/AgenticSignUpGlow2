@@ -3806,32 +3806,10 @@ async def tryOn(user_id: str, request: Request):
 
         raw_fit_b64 = vton_response.predictions[0]['bytesBase64Encoded']
 
-        # --- STAGE 2: IMAGEN 3 (The Polaroid Vibe) ---
-        # 3. FIXED: Initialize vertexai with the global credentials
-        vertexai.init(project=PROJECT_ID, location=LOCATION, credentials=credentials)
-        
-        # Load the creative model
-        creative_model = ImageGenerationModel.from_pretrained("imagen-3.0-capability-001")
-
-        # Create the Vertex Image object from Stage 1 result
-        fit_image = Image(image_bytes=base64.b64decode(raw_fit_b64))
-
-        # Use edit_image with mask_free_guidance mode
-        styled_response = creative_model.edit_image(
-            prompt=(
-                "A realistic 90s vintage polaroid photo, authentic film grain, "
-                "heavy camera flash, white square frame border, faded colors."
-            ),
-            base_image=fit_image,
-            mask_free_guidance=True,
-            person_generation="allow_adult"
-        )
-
-        final_b64 = styled_response.images[0]._as_base64_string()
-
+        # Return the virtual try-on result
         return {
             "status": "success",
-            "image": f"data:image/png;base64,{final_b64}"
+            "image": f"data:image/png;base64,{raw_fit_b64}"
         }
 
     except Exception as e:
